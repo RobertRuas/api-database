@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API DataBase — Painel</title>
+  <style>
+    /* ============================================================
+       Painel administrativo — SPA single-file.
+       Layout limpo, responsivo, dark-only por simplicidade.
+       ============================================================ */
+    :root {
+      --bg: #0b0d12;
+      --panel: #141821;
+      --panel-2: #1b2130;
+      --border: #242b3d;
+      --text: #e6e8ee;
+      --text-dim: #8a93a6;
+      --accent: #5b9cff;
+      --accent-2: #4079d6;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    button {
+      font: inherit; cursor: pointer; border: 1px solid var(--border);
+      background: var(--panel-2); color: var(--text);
+      padding: 8px 14px; border-radius: 6px;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+    button.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+    button.danger:hover { background: var(--danger); color: #fff; }
+    input, select, textarea {
+      font: inherit; width: 100%; padding: 8px 10px; border-radius: 6px;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    label { display: block; margin-bottom: 4px; color: var(--text-dim); font-size: 12px; }
+
+    header {
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--panel);
+    }
+    header h1 { font-size: 15px; margin: 0; letter-spacing: 0.3px; }
+    header h1 span { color: var(--accent); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px; margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 16px; }
+
+    .grid { display: grid; gap: 12px; }
+    .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    @media (max-width: 720px) { .grid.cols-2, .grid.cols-4 { grid-template-columns: 1fr; } }
+
+    .stat { background: var(--panel-2); padding: 14px; border-radius: 8px; }
+    .stat .v { font-size: 22px; font-weight: 600; }
+    .stat .k { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+    code, .mono { font-family: var(--mono); font-size: 13px; background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: var(--panel-2); color: var(--text-dim); }
+    .badge.ok { color: var(--success); border: 1px solid var(--success); }
+    .badge.off { color: var(--danger); border: 1px solid var(--danger); }
+
+    .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .login-card { width: 100%; max-width: 360px; }
+
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; padding: 24px; z-index: 100; }
+    .modal { width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .modal h3 { margin: 0 0 14px; }
+
+    .row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 10px 14px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px; max-width: 360px;
+    }
+    .toast.ok { border-color: var(--success); }
+    .toast.err { border-color: var(--danger); }
+
+    .scopes label { display: inline-flex; gap: 6px; margin-right: 12px; color: var(--text); }
+    .scopes input { width: auto; }
+
+    .muted { color: var(--text-dim); }
+    .sep { height: 1px; background: var(--border); margin: 16px 0; }
+    .flex { display: flex; align-items: center; gap: 10px; }
+    .flex.between { justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <!-- A UI inteira é construída via JS. Dois modos: #/login e #/ -->
+  <div id="root"></div>
+  <div id="toast"></div>
+
+  <script>
+  // ============================================================
+  // Mini-SPA: sem build, sem framework. Fetch + render manual.
+  // ============================================================
+  const api = {
+    async request(path, opts = {}) {
+      const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      const json = await res.json().catch(() => ({ ok: false, error: { message: 'Resposta inválida' } }));
+      if (!json.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
+      return json.data;
+    },
+    me:            ()            => api.request('/admin/api/me'),
+    login:         (u, p)        => api.request('/admin/login',  { method: 'POST', body: { username: u, password: p } }),
+    logout:        ()            => api.request('/admin/logout', { method: 'POST' }),
+    stats:         ()            => api.request('/admin/api/stats'),
+    listApps:      ()            => api.request('/admin/api/apps'),
+    createApp:     (b)           => api.request('/admin/api/apps', { method: 'POST', body: b }),
+    updateApp:     (id, b)       => api.request(`/admin/api/apps/${id}`, { method: 'PATCH', body: b }),
+    deleteApp:     (id)          => api.request(`/admin/api/apps/${id}`, { method: 'DELETE' }),
+    listKeys:      (id)          => api.request(`/admin/api/apps/${id}/keys`),
+    createKey:     (id, b)       => api.request(`/admin/api/apps/${id}/keys`, { method: 'POST', body: b }),
+    revokeKey:     (appId, kId)  => api.request(`/admin/api/apps/${appId}/keys/${kId}`, { method: 'DELETE' }),
+  };
+
+  function toast(msg, kind = 'ok') {
+    const el = document.getElementById('toast');
+    el.innerHTML = `<div class="toast ${kind}">${escapeHtml(msg)}</div>`;
+    setTimeout(() => (el.innerHTML = ''), 3500);
+  }
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+  function fmtBytes(n) {
+    if (!n) return '0 B';
+    const k = 1024, sizes = ['B','KB','MB','GB','TB'];
+    const i = Math.min(sizes.length - 1, Math.floor(Math.log(n) / Math.log(k)));
+    return (n / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString();
+  }
+
+  // ---------- Views ----------
+
+  async function renderLogin() {
+    document.getElementById('root').innerHTML = `
+      <div class="login-wrap">
+        <div class="card login-card">
+          <h2>API <span style="color:var(--accent)">DataBase</span></h2>
+          <p class="muted" style="margin-top:0">Entre para gerenciar aplicações e chaves.</p>
+          <form id="login-form">
+            <label>Usuário</label>
+            <input name="username" autofocus autocomplete="username" />
+            <div style="height:10px"></div>
+            <label>Senha</label>
+            <input name="password" type="password" autocomplete="current-password" />
+            <div class="row">
+              <button class="primary" type="submit">Entrar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    document.getElementById('login-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api.login(fd.get('username'), fd.get('password'));
+        location.hash = '#/';
+        renderDashboard();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    };
+  }
+
+  async function renderDashboard() {
+    const root = document.getElementById('root');
+    root.innerHTML = `
+      <header>
+        <h1>API <span>DataBase</span> — Painel</h1>
+        <div class="flex">
+          <span class="muted" id="who"></span>
+          <button id="logout">Sair</button>
+        </div>
+      </header>
+      <main>
+        <section id="stats" class="grid cols-4"></section>
+        <section class="card">
+          <div class="flex between">
+            <h2>Aplicações</h2>
+            <button class="primary" id="new-app">+ Nova aplicação</button>
+          </div>
+          <div id="apps"></div>
+        </section>
+      </main>
+    `;
+    document.getElementById('logout').onclick = async () => {
+      await api.logout();
+      location.hash = '#/login';
+      renderLogin();
+    };
+    document.getElementById('new-app').onclick = openNewAppModal;
+
+    try {
+      const me = await api.me();
+      document.getElementById('who').textContent = me.username;
+    } catch {
+      location.hash = '#/login';
+      return renderLogin();
+    }
+
+    renderStats();
+    renderApps();
+  }
+
+  async function renderStats() {
+    try {
+      const s = await api.stats();
+      document.getElementById('stats').innerHTML = `
+        ${stat('Aplicações', s.applications)}
+        ${stat('Chaves ativas', s.activeKeys)}
+        ${stat('Documentos', s.documents)}
+        ${stat('Arquivos', `${s.files} · ${fmtBytes(s.storageBytes)}`)}
+      `;
+    } catch (err) { toast(err.message, 'err'); }
+  }
+  function stat(k, v) { return `<div class="stat"><div class="k">${k}</div><div class="v">${escapeHtml(v)}</div></div>`; }
+
+  async function renderApps() {
+    const box = document.getElementById('apps');
+    try {
+      const apps = await api.listApps();
+      if (!apps.length) {
+        box.innerHTML = `<p class="muted">Nenhuma aplicação ainda. Crie a primeira acima.</p>`;
+        return;
+      }
+      box.innerHTML = `
+        <table>
+          <thead><tr><th>Nome</th><th>Status</th><th>Chaves</th><th>Coleções</th><th>Arquivos</th><th>Criada em</th><th></th></tr></thead>
+          <tbody>
+            ${apps.map(a => `
+              <tr>
+                <td><strong>${escapeHtml(a.name)}</strong><br><span class="muted">${escapeHtml(a.description || '')}</span></td>
+                <td><span class="badge ${a.active ? 'ok' : 'off'}">${a.active ? 'ativa' : 'desativada'}</span></td>
+                <td>${a.counts.apiKeys}</td>
+                <td>${a.counts.collections}</td>
+                <td>${a.counts.files}</td>
+                <td class="muted">${fmtDate(a.createdAt)}</td>
+                <td><button data-manage="${a.id}">Gerenciar</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+      box.querySelectorAll('[data-manage]').forEach(btn => {
+        btn.onclick = () => openAppModal(btn.dataset.manage);
+      });
+    } catch (err) { toast(err.message, 'err'); }
+  }
+
+  function openNewAppModal() {
+    openModal(`
+      <h3>Nova aplicação</h3>
+      <form id="f">
+        <label>Nome (único, só letras/números/_-)</label>
+        <input name="name" required pattern="[a-zA-Z0-9_-]+" />
+        <div style="height:10px"></div>
+        <label>Descrição</label>
+        <textarea name="description" rows="2"></textarea>
+        <div class="row">
+          <button type="button" data-close>Cancelar</button>
+          <button class="primary" type="submit">Criar</button>
+        </div>
+      </form>
+    `, (modal) => {
+      modal.querySelector('#f').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          await api.createApp({ name: fd.get('name'), description: fd.get('description') || undefined });
+          closeModal(); toast('Aplicação criada', 'ok'); renderApps(); renderStats();
+        } catch (err) { toast(err.message, 'err'); }
+      };
+    });
+  }
+
+  async function openAppModal(id) {
+    let app = (await api.listApps()).find(a => a.id === id);
+    if (!app) return;
+    let keys = await api.listKeys(id);
+
+    openModal(`
+      <h3>${escapeHtml(app.name)}</h3>
+      <p class="muted">${escapeHtml(app.description || 'Sem descrição')}</p>
+      <div class="flex between">
+        <span class="badge ${app.active ? 'ok' : 'off'}">${app.active ? 'ativa' : 'desativada'}</span>
+        <div class="flex">
+          <button id="toggle">${app.active ? 'Desativar' : 'Ativar'}</button>
+          <button class="danger" id="delete">Excluir</button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="flex between">
+        <h3 style="margin:0">Chaves de API</h3>
+        <button class="primary" id="new-key">+ Nova chave</button>
+      </div>
+      <div id="keys" style="margin-top:10px"></div>
+      <div class="row">
+        <button type="button" data-close>Fechar</button>
+      </div>
+    `, (modal) => {
+      const renderKeys = () => {
+        const box = modal.querySelector('#keys');
+        if (!keys.length) { box.innerHTML = '<p class="muted">Sem chaves ainda.</p>'; return; }
+        box.innerHTML = `<table><thead><tr><th>Nome</th><th>Prefixo</th><th>Escopos</th><th>Último uso</th><th>Status</th><th></th></tr></thead><tbody>
+          ${keys.map(k => `
+            <tr>
+              <td>${escapeHtml(k.name)}</td>
+              <td><code>${escapeHtml(k.prefix)}…</code></td>
+              <td>${k.scopes.map(s => `<span class="badge">${s}</span>`).join(' ')}</td>
+              <td class="muted">${fmtDate(k.lastUsedAt)}</td>
+              <td>${k.revokedAt ? '<span class="badge off">revogada</span>' : '<span class="badge ok">ativa</span>'}</td>
+              <td>${k.revokedAt ? '' : `<button class="danger" data-revoke="${k.id}">Revogar</button>`}</td>
+            </tr>
+          `).join('')}
+        </tbody></table>`;
+        box.querySelectorAll('[data-revoke]').forEach(b => {
+          b.onclick = async () => {
+            if (!confirm('Revogar esta chave? Essa ação é permanente.')) return;
+            try { await api.revokeKey(id, b.dataset.revoke); keys = await api.listKeys(id); renderKeys(); toast('Chave revogada'); }
+            catch (err) { toast(err.message, 'err'); }
+          };
+        });
+      };
+      renderKeys();
+
+      modal.querySelector('#toggle').onclick = async () => {
+        try { await api.updateApp(id, { active: !app.active }); app.active = !app.active; closeModal(); renderApps(); renderStats(); }
+        catch (err) { toast(err.message, 'err'); }
+      };
+      modal.querySelector('#delete').onclick = async () => {
+        if (!confirm(`Excluir a aplicação "${app.name}"?\n\nTodos os seus documentos, versões e metadados de arquivos serão apagados. Os arquivos físicos no disco permanecem — remova manualmente se necessário.`)) return;
+        try { await api.deleteApp(id); closeModal(); toast('Aplicação excluída'); renderApps(); renderStats(); }
+        catch (err) { toast(err.message, 'err'); }
+      };
+      modal.querySelector('#new-key').onclick = () => openNewKeyModal(id, async () => { keys = await api.listKeys(id); renderKeys(); });
+    });
+  }
+
+  function openNewKeyModal(appId, onCreated) {
+    openModal(`
+      <h3>Nova chave de API</h3>
+      <form id="f">
+        <label>Nome (ex.: produção, mobile-ios)</label>
+        <input name="name" required />
+        <div style="height:10px"></div>
+        <label>Escopos</label>
+        <div class="scopes">
+          <label><input type="checkbox" name="scopes" value="read" checked /> read</label>
+          <label><input type="checkbox" name="scopes" value="write" checked /> write</label>
+          <label><input type="checkbox" name="scopes" value="delete" /> delete</label>
+          <label><input type="checkbox" name="scopes" value="files" /> files</label>
+        </div>
+        <div class="row">
+          <button type="button" data-close>Cancelar</button>
+          <button class="primary" type="submit">Gerar chave</button>
+        </div>
+      </form>
+    `, (modal) => {
+      modal.querySelector('#f').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const scopes = fd.getAll('scopes');
+        if (!scopes.length) return toast('Selecione ao menos um escopo', 'err');
+        try {
+          const created = await api.createKey(appId, { name: fd.get('name'), scopes });
+          // Mostra o token UMA ÚNICA VEZ.
+          openModal(`
+            <h3>Chave criada — copie agora</h3>
+            <p class="muted">Este valor <strong>não será exibido novamente</strong>.</p>
+            <textarea rows="3" readonly onclick="this.select()">${escapeHtml(created.token)}</textarea>
+            <div class="row">
+              <button class="primary" data-close>Entendi, guardei a chave</button>
+            </div>
+          `);
+          onCreated && onCreated();
+          renderStats();
+        } catch (err) { toast(err.message, 'err'); }
+      };
+    });
+  }
+
+  // ---------- Modal utils ----------
+  function openModal(html, afterMount) {
+    closeModal();
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal">${html}</div>`;
+    document.body.appendChild(bg);
+    bg.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
+    bg.addEventListener('click', e => { if (e.target === bg) closeModal(); });
+    if (afterMount) afterMount(bg.querySelector('.modal'));
+  }
+  function closeModal() {
+    document.querySelectorAll('.modal-bg').forEach(el => el.remove());
+  }
+
+  // ---------- Router mínimo ----------
+  async function boot() {
+    try {
+      await api.me();
+      if (!location.hash || location.hash === '#/login') location.hash = '#/';
+      renderDashboard();
+    } catch {
+      location.hash = '#/login';
+      renderLogin();
+    }
+  }
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#/login') renderLogin();
+    else renderDashboard();
+  });
+  boot();
+  </script>
+</body>
+</html>

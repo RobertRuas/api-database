@@ -1,0 +1,139 @@
+// ============================================================
+//  API DataBase — Schema Prisma
+//
+//  Modelo mínimo e enxuto para suportar:
+//  - Múltiplas Aplicações isoladas por API Key
+//  - Coleções livres (criadas implicitamente)
+//  - Documentos JSON com histórico de versões
+//  - Metadados de arquivos salvos em disco
+//  - Logs de acesso (auditoria básica)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Aplicações que consomem a API.
+/// Cada aplicação é isolada: só enxerga suas próprias coleções/arquivos.
+model Application {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  apiKeys     ApiKey[]
+  collections Collection[]
+  files       FileAsset[]
+
+  @@map("applications")
+}
+
+/// Chaves de API.
+/// Guardamos apenas o hash — o valor completo só é exibido na criação.
+model ApiKey {
+  id            String    @id @default(cuid())
+  applicationId String
+  name          String
+  prefix        String    @unique // primeiros 8 chars, para exibir no painel
+  hash          String    // hash bcrypt do segredo
+  scopes        String[]  // ex: ["read","write","delete","files"]
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("api_keys")
+}
+
+/// Coleção pertence a uma aplicação e é criada no primeiro insert.
+model Collection {
+  id            String   @id @default(cuid())
+  applicationId String
+  name          String
+  createdAt     DateTime @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  documents     Document[]
+
+  @@unique([applicationId, name])
+  @@map("collections")
+}
+
+/// Documento JSON "atual" de uma coleção.
+/// Cada UPDATE também grava uma linha em DocumentVersion.
+model Document {
+  id           String   @id @default(cuid())
+  collectionId String
+  data         Json
+  version      Int      @default(1)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collection   Collection        @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  versions     DocumentVersion[]
+
+  @@index([collectionId])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+/// Histórico imutável de versões de um documento.
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  data       Json
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+/// Arquivos salvos em disco. O binário vive em STORAGE_ROOT; aqui só metadata.
+model FileAsset {
+  id            String   @id @default(cuid())
+  applicationId String
+  collection    String   // nome lógico da "coleção de arquivos" (string livre)
+  originalName  String
+  storedPath    String   // caminho relativo a STORAGE_ROOT
+  size          Int
+  mimeType      String
+  sha256        String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, collection])
+  @@index([sha256])
+  @@map("files")
+}
+
+/// Log de acesso — auditoria leve.
+model AccessLog {
+  id            String   @id @default(cuid())
+  applicationId String?
+  apiKeyId      String?
+  method        String
+  path          String
+  status        Int
+  ip            String?
+  userAgent     String?
+  durationMs    Int
+  createdAt     DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+  @@map("access_logs")
+}

@@ -1,0 +1,48 @@
+# ============================================================
+#  Stack completa: Postgres + API.
+#  Em produção, coloque este compose atrás do Nginx reverso do host.
+# ============================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-apidb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apidb}
+      POSTGRES_DB: ${POSTGRES_DB:-api_database}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Não expomos a porta externamente — só a API acessa pela rede interna.
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      PUBLIC_URL: ${PUBLIC_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-apidb}:${POSTGRES_PASSWORD:-apidb}@postgres:5432/${POSTGRES_DB:-api_database}
+      STORAGE_ROOT: /app/storage
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-104857600}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:3000:3000"  # Nginx do host faz o proxy TLS
+    volumes:
+      - storage:/app/storage
+
+volumes:
+  pgdata:
+  storage:
