@@ -198,6 +198,106 @@ const routes: FastifyPluginAsync = async (app) => {
     return { ok: true, data: { id: keyId, revoked: true } };
   });
 
+  // ---- Coleções de uma aplicação ----
+  app.get('/api/apps/:id/collections', { preHandler: adminAuth }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const collections = await prisma.collection.findMany({
+      where: { applicationId: id },
+      orderBy: { name: 'asc' },
+      include: {
+        _count: { select: { documents: { where: { deletedAt: null } } } },
+      },
+    });
+    return {
+      ok: true,
+      data: collections.map((c) => ({
+        id: c.id,
+        name: c.name,
+        documents: c._count.documents,
+        createdAt: c.createdAt.toISOString(),
+      })),
+    };
+  });
+
+  // ---- Documentos de uma coleção ----
+  app.get('/api/apps/:id/collections/:name/documents', { preHandler: adminAuth }, async (req) => {
+    const { id, name } = z.object({ id: z.string(), name: z.string() }).parse(req.params);
+    const { limit, offset } = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+      })
+      .parse(req.query);
+
+    const col = await prisma.collection.findUnique({
+      where: { applicationId_name: { applicationId: id, name } },
+    });
+    if (!col) throw Errors.notFound('Coleção');
+
+    const [items, total] = await Promise.all([
+      prisma.document.findMany({
+        where: { collectionId: col.id, deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.document.count({ where: { collectionId: col.id, deletedAt: null } }),
+    ]);
+    return {
+      ok: true,
+      data: {
+        items: items.map((d) => ({
+          id: d.id,
+          data: d.data,
+          version: d.version,
+          createdAt: d.createdAt.toISOString(),
+          updatedAt: d.updatedAt.toISOString(),
+        })),
+        total,
+        limit,
+        offset,
+      },
+    };
+  });
+
+  // ---- Arquivos de uma aplicação (todas as coleções) ----
+  app.get('/api/apps/:id/files', { preHandler: adminAuth }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { limit, offset } = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+      })
+      .parse(req.query);
+
+    const [items, total] = await Promise.all([
+      prisma.fileAsset.findMany({
+        where: { applicationId: id },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.fileAsset.count({ where: { applicationId: id } }),
+    ]);
+    return {
+      ok: true,
+      data: {
+        items: items.map((f) => ({
+          id: f.id,
+          collection: f.collection,
+          originalName: f.originalName,
+          size: f.size,
+          mimeType: f.mimeType,
+          sha256: f.sha256,
+          createdAt: f.createdAt.toISOString(),
+        })),
+        total,
+        limit,
+        offset,
+      },
+    };
+  });
+
   // ---- Stats globais ----
   app.get('/api/stats', { preHandler: adminAuth }, async () => {
     const [apps, keys, docs, files, totalSize] = await Promise.all([

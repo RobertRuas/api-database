@@ -3,443 +3,642 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>API DataBase — Painel</title>
+  <title>Painel — api-database</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🗃️%3C/text%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* ============================================================
-       Painel administrativo — SPA single-file.
-       Layout limpo, responsivo, dark-only por simplicidade.
-       ============================================================ */
-    :root {
-      --bg: #0b0d12;
-      --panel: #141821;
-      --panel-2: #1b2130;
-      --border: #242b3d;
-      --text: #e6e8ee;
-      --text-dim: #8a93a6;
-      --accent: #5b9cff;
-      --accent-2: #4079d6;
-      --danger: #ef4444;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; height: 100%; }
-    body {
-      background: var(--bg); color: var(--text);
-      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    button {
-      font: inherit; cursor: pointer; border: 1px solid var(--border);
-      background: var(--panel-2); color: var(--text);
-      padding: 8px 14px; border-radius: 6px;
-    }
-    button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
-    button.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
-    button.danger:hover { background: var(--danger); color: #fff; }
-    input, select, textarea {
-      font: inherit; width: 100%; padding: 8px 10px; border-radius: 6px;
-      background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
-    label { display: block; margin-bottom: 4px; color: var(--text-dim); font-size: 12px; }
-
-    header {
-      padding: 14px 24px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
-      background: var(--panel);
-    }
-    header h1 { font-size: 15px; margin: 0; letter-spacing: 0.3px; }
-    header h1 span { color: var(--accent); }
-
-    main { max-width: 1100px; margin: 0 auto; padding: 24px; }
-
-    .card {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 20px; margin-bottom: 16px;
-    }
-    .card h2 { margin: 0 0 12px; font-size: 16px; }
-
-    .grid { display: grid; gap: 12px; }
-    .grid.cols-2 { grid-template-columns: 1fr 1fr; }
-    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-    @media (max-width: 720px) { .grid.cols-2, .grid.cols-4 { grid-template-columns: 1fr; } }
-
-    .stat { background: var(--panel-2); padding: 14px; border-radius: 8px; }
-    .stat .v { font-size: 22px; font-weight: 600; }
-    .stat .k { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
-    code, .mono { font-family: var(--mono); font-size: 13px; background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
-
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: var(--panel-2); color: var(--text-dim); }
-    .badge.ok { color: var(--success); border: 1px solid var(--success); }
-    .badge.off { color: var(--danger); border: 1px solid var(--danger); }
-
-    .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-    .login-card { width: 100%; max-width: 360px; }
-
-    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; padding: 24px; z-index: 100; }
-    .modal { width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
-    .modal h3 { margin: 0 0 14px; }
-
-    .row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
-
-    .toast {
-      position: fixed; bottom: 20px; right: 20px; padding: 10px 14px;
-      background: var(--panel); border: 1px solid var(--border); border-radius: 8px; max-width: 360px;
-    }
-    .toast.ok { border-color: var(--success); }
-    .toast.err { border-color: var(--danger); }
-
-    .scopes label { display: inline-flex; gap: 6px; margin-right: 12px; color: var(--text); }
-    .scopes input { width: auto; }
-
-    .muted { color: var(--text-dim); }
-    .sep { height: 1px; background: var(--border); margin: 16px 0; }
-    .flex { display: flex; align-items: center; gap: 10px; }
-    .flex.between { justify-content: space-between; }
+    html, body { background: #ffffff; color: #0a0a0a; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    [x-cloak] { display: none !important; }
+    /* Scrollbar discreta */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
   </style>
 </head>
-<body>
-  <!-- A UI inteira é construída via JS. Dois modos: #/login e #/ -->
+<body class="min-h-screen bg-white text-neutral-900">
   <div id="root"></div>
-  <div id="toast"></div>
+  <div id="toast-root" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
 
-  <script>
-  // ============================================================
-  // Mini-SPA: sem build, sem framework. Fetch + render manual.
-  // ============================================================
-  const api = {
-    async request(path, opts = {}) {
-      const res = await fetch(path, {
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-        ...opts,
-        body: opts.body ? JSON.stringify(opts.body) : undefined,
-      });
-      const json = await res.json().catch(() => ({ ok: false, error: { message: 'Resposta inválida' } }));
-      if (!json.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
-      return json.data;
-    },
-    me:            ()            => api.request('/admin/api/me'),
-    login:         (u, p)        => api.request('/admin/login',  { method: 'POST', body: { username: u, password: p } }),
-    logout:        ()            => api.request('/admin/logout', { method: 'POST' }),
-    stats:         ()            => api.request('/admin/api/stats'),
-    listApps:      ()            => api.request('/admin/api/apps'),
-    createApp:     (b)           => api.request('/admin/api/apps', { method: 'POST', body: b }),
-    updateApp:     (id, b)       => api.request(`/admin/api/apps/${id}`, { method: 'PATCH', body: b }),
-    deleteApp:     (id)          => api.request(`/admin/api/apps/${id}`, { method: 'DELETE' }),
-    listKeys:      (id)          => api.request(`/admin/api/apps/${id}/keys`),
-    createKey:     (id, b)       => api.request(`/admin/api/apps/${id}/keys`, { method: 'POST', body: b }),
-    revokeKey:     (appId, kId)  => api.request(`/admin/api/apps/${appId}/keys/${kId}`, { method: 'DELETE' }),
+<script>
+// ============================================================
+//  Painel admin — SPA single-file, Tailwind CDN, tema branco.
+//  Sem framework: fetch + render manual.
+// ============================================================
+
+// ---------- API client ----------
+const api = {
+  async request(path, opts = {}) {
+    const res = await fetch(path, {
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      ...opts,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const json = await res.json().catch(() => ({ ok: false, error: { message: 'Resposta inválida' } }));
+    if (!json.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
+    return json.data;
+  },
+  me:              ()            => api.request('/admin/api/me'),
+  login:           (u, p)        => api.request('/admin/login',  { method: 'POST', body: { username: u, password: p } }),
+  logout:          ()            => api.request('/admin/logout', { method: 'POST' }),
+  stats:           ()            => api.request('/admin/api/stats'),
+  listApps:        ()            => api.request('/admin/api/apps'),
+  createApp:       (b)           => api.request('/admin/api/apps', { method: 'POST', body: b }),
+  updateApp:       (id, b)       => api.request(`/admin/api/apps/${id}`, { method: 'PATCH', body: b }),
+  deleteApp:       (id)          => api.request(`/admin/api/apps/${id}`, { method: 'DELETE' }),
+  listKeys:        (id)          => api.request(`/admin/api/apps/${id}/keys`),
+  createKey:       (id, b)       => api.request(`/admin/api/apps/${id}/keys`, { method: 'POST', body: b }),
+  revokeKey:       (appId, kId)  => api.request(`/admin/api/apps/${appId}/keys/${kId}`, { method: 'DELETE' }),
+  listCollections: (id)          => api.request(`/admin/api/apps/${id}/collections`),
+  listDocuments:   (id, name)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents`),
+  listFiles:       (id)          => api.request(`/admin/api/apps/${id}/files`),
+};
+
+// ---------- Utils ----------
+const h = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function fmtBytes(n) {
+  if (!n) return '0 B';
+  const k = 1024, sizes = ['B','KB','MB','GB','TB'];
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(n) / Math.log(k)));
+  return (n / Math.pow(k, i)).toFixed(i ? 1 : 0) + ' ' + sizes[i];
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'há poucos segundos';
+  if (diff < 3600) return `há ${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff/3600)} h`;
+  if (diff < 86400*7) return `há ${Math.floor(diff/86400)} d`;
+  return d.toLocaleString();
+}
+function toast(msg, kind = 'ok') {
+  const root = $('#toast-root');
+  const color = kind === 'err'
+    ? 'bg-red-50 border-red-200 text-red-900'
+    : 'bg-emerald-50 border-emerald-200 text-emerald-900';
+  const el = document.createElement('div');
+  el.className = `${color} border rounded-md shadow-sm px-4 py-2 text-sm animate-[fadeIn_.2s_ease-out] max-w-sm`;
+  el.textContent = msg;
+  root.appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Copiado'); }
+  catch { toast('Não foi possível copiar', 'err'); }
+}
+
+// ---------- Modal ----------
+function openModal(contentHtml, afterMount) {
+  closeModal();
+  const bg = document.createElement('div');
+  bg.className = 'fixed inset-0 z-40 bg-black/40 flex items-start justify-center px-4 pt-16 pb-8 overflow-y-auto';
+  bg.innerHTML = `<div class="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">${contentHtml}</div>`;
+  document.body.appendChild(bg);
+  bg.addEventListener('click', e => { if (e.target === bg) closeModal(); });
+  $$('[data-close]', bg).forEach(el => el.onclick = closeModal);
+  if (afterMount) afterMount(bg.firstElementChild);
+}
+function closeModal() {
+  $$('.fixed.inset-0.z-40').forEach(el => el.remove());
+}
+
+// ============================================================
+//  Views
+// ============================================================
+
+function renderLogin() {
+  $('#root').innerHTML = `
+    <div class="min-h-screen grid place-items-center px-4">
+      <div class="w-full max-w-sm">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-neutral-900 text-white text-xl mb-3">🗃️</div>
+          <h1 class="text-2xl font-semibold tracking-tight">api-database</h1>
+          <p class="text-sm text-neutral-500 mt-1">Painel administrativo</p>
+        </div>
+        <form id="login-form" class="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-neutral-600 mb-1">Usuário</label>
+            <input name="username" required autofocus autocomplete="username"
+              class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-neutral-600 mb-1">Senha</label>
+            <input name="password" type="password" required autocomplete="current-password"
+              class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent" />
+          </div>
+          <button type="submit" class="w-full bg-neutral-900 text-white text-sm font-medium py-2 rounded-md hover:bg-neutral-800 transition">
+            Entrar
+          </button>
+        </form>
+      </div>
+    </div>`;
+  $('#login-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api.login(fd.get('username'), fd.get('password'));
+      location.hash = '#/';
+      renderDashboard();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
+}
 
-  function toast(msg, kind = 'ok') {
-    const el = document.getElementById('toast');
-    el.innerHTML = `<div class="toast ${kind}">${escapeHtml(msg)}</div>`;
-    setTimeout(() => (el.innerHTML = ''), 3500);
-  }
-  function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  }
-  function fmtBytes(n) {
-    if (!n) return '0 B';
-    const k = 1024, sizes = ['B','KB','MB','GB','TB'];
-    const i = Math.min(sizes.length - 1, Math.floor(Math.log(n) / Math.log(k)));
-    return (n / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
-  }
-  function fmtDate(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString();
-  }
-
-  // ---------- Views ----------
-
-  async function renderLogin() {
-    document.getElementById('root').innerHTML = `
-      <div class="login-wrap">
-        <div class="card login-card">
-          <h2>API <span style="color:var(--accent)">DataBase</span></h2>
-          <p class="muted" style="margin-top:0">Entre para gerenciar aplicações e chaves.</p>
-          <form id="login-form">
-            <label>Usuário</label>
-            <input name="username" autofocus autocomplete="username" />
-            <div style="height:10px"></div>
-            <label>Senha</label>
-            <input name="password" type="password" autocomplete="current-password" />
-            <div class="row">
-              <button class="primary" type="submit">Entrar</button>
-            </div>
-          </form>
+async function renderDashboard() {
+  $('#root').innerHTML = `
+    <nav class="border-b border-neutral-200 bg-white sticky top-0 z-30">
+      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <a href="/" class="w-8 h-8 rounded-md bg-neutral-900 text-white grid place-items-center text-sm">🗃️</a>
+          <div>
+            <div class="text-sm font-semibold leading-none">api-database</div>
+            <div class="text-xs text-neutral-500 mt-0.5">painel administrativo</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <a href="/" class="text-neutral-600 hover:text-neutral-900">↗ pública</a>
+          <span class="h-4 w-px bg-neutral-200"></span>
+          <span class="text-neutral-500" id="who">—</span>
+          <button id="logout" class="text-neutral-700 hover:text-neutral-900 border border-neutral-200 rounded-md px-3 py-1 text-xs hover:border-neutral-400 transition">Sair</button>
         </div>
       </div>
-    `;
-    document.getElementById('login-form').onsubmit = async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      try {
-        await api.login(fd.get('username'), fd.get('password'));
-        location.hash = '#/';
-        renderDashboard();
-      } catch (err) {
-        toast(err.message, 'err');
-      }
-    };
-  }
+    </nav>
 
-  async function renderDashboard() {
-    const root = document.getElementById('root');
-    root.innerHTML = `
-      <header>
-        <h1>API <span>DataBase</span> — Painel</h1>
-        <div class="flex">
-          <span class="muted" id="who"></span>
-          <button id="logout">Sair</button>
-        </div>
-      </header>
-      <main>
-        <section id="stats" class="grid cols-4"></section>
-        <section class="card">
-          <div class="flex between">
-            <h2>Aplicações</h2>
-            <button class="primary" id="new-app">+ Nova aplicação</button>
+    <main class="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <section id="stats"></section>
+
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold">Aplicações</h2>
+            <p class="text-xs text-neutral-500 mt-0.5">Cada aplicação tem suas próprias coleções, arquivos e chaves.</p>
           </div>
-          <div id="apps"></div>
-        </section>
-      </main>
-    `;
-    document.getElementById('logout').onclick = async () => {
-      await api.logout();
-      location.hash = '#/login';
-      renderLogin();
-    };
-    document.getElementById('new-app').onclick = openNewAppModal;
+          <button id="new-app" class="bg-neutral-900 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-neutral-800 transition inline-flex items-center gap-2">
+            <span class="text-base leading-none">+</span> Nova aplicação
+          </button>
+        </div>
+        <div id="apps-wrap"></div>
+      </section>
+    </main>`;
 
-    try {
-      const me = await api.me();
-      document.getElementById('who').textContent = me.username;
-    } catch {
-      location.hash = '#/login';
-      return renderLogin();
-    }
+  $('#logout').onclick = async () => {
+    try { await api.logout(); } catch {}
+    location.hash = '#/login';
+    renderLogin();
+  };
+  $('#new-app').onclick = openNewAppModal;
 
-    renderStats();
-    renderApps();
+  try {
+    const me = await api.me();
+    $('#who').textContent = me.username;
+  } catch {
+    location.hash = '#/login';
+    return renderLogin();
   }
 
-  async function renderStats() {
-    try {
-      const s = await api.stats();
-      document.getElementById('stats').innerHTML = `
-        ${stat('Aplicações', s.applications)}
-        ${stat('Chaves ativas', s.activeKeys)}
-        ${stat('Documentos', s.documents)}
-        ${stat('Arquivos', `${s.files} · ${fmtBytes(s.storageBytes)}`)}
-      `;
-    } catch (err) { toast(err.message, 'err'); }
-  }
-  function stat(k, v) { return `<div class="stat"><div class="k">${k}</div><div class="v">${escapeHtml(v)}</div></div>`; }
+  renderStats();
+  renderApps();
+}
 
-  async function renderApps() {
-    const box = document.getElementById('apps');
-    try {
-      const apps = await api.listApps();
-      if (!apps.length) {
-        box.innerHTML = `<p class="muted">Nenhuma aplicação ainda. Crie a primeira acima.</p>`;
-        return;
-      }
+async function renderStats() {
+  try {
+    const s = await api.stats();
+    $('#stats').innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        ${statCard('Aplicações',   s.applications,                '🎯')}
+        ${statCard('Chaves ativas', s.activeKeys,                  '🔑')}
+        ${statCard('Documentos',    s.documents.toLocaleString(),  '📄')}
+        ${statCard('Arquivos',      `${s.files} <span class="text-sm font-normal text-neutral-500">· ${fmtBytes(s.storageBytes)}</span>`, '📦')}
+      </div>`;
+  } catch (err) { toast(err.message, 'err'); }
+}
+function statCard(k, v, icon) {
+  return `<div class="bg-white border border-neutral-200 rounded-lg p-4">
+    <div class="flex items-center justify-between text-xs text-neutral-500 uppercase tracking-wide">
+      <span>${k}</span><span>${icon}</span>
+    </div>
+    <div class="text-2xl font-semibold mt-1">${v}</div>
+  </div>`;
+}
+
+async function renderApps() {
+  const box = $('#apps-wrap');
+  try {
+    const apps = await api.listApps();
+    if (!apps.length) {
       box.innerHTML = `
-        <table>
-          <thead><tr><th>Nome</th><th>Status</th><th>Chaves</th><th>Coleções</th><th>Arquivos</th><th>Criada em</th><th></th></tr></thead>
-          <tbody>
+        <div class="bg-white border border-dashed border-neutral-300 rounded-lg p-10 text-center">
+          <div class="text-3xl mb-2">📭</div>
+          <p class="text-sm text-neutral-600">Nenhuma aplicação ainda.</p>
+          <p class="text-xs text-neutral-500 mt-1">Clique em <strong>Nova aplicação</strong> acima para começar.</p>
+        </div>`;
+      return;
+    }
+    box.innerHTML = `
+      <div class="bg-white border border-neutral-200 rounded-lg overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left font-medium px-4 py-2.5">Nome</th>
+              <th class="text-left font-medium px-4 py-2.5">Status</th>
+              <th class="text-right font-medium px-4 py-2.5">Chaves</th>
+              <th class="text-right font-medium px-4 py-2.5">Coleções</th>
+              <th class="text-right font-medium px-4 py-2.5">Arquivos</th>
+              <th class="text-left font-medium px-4 py-2.5">Criada</th>
+              <th class="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-100">
             ${apps.map(a => `
-              <tr>
-                <td><strong>${escapeHtml(a.name)}</strong><br><span class="muted">${escapeHtml(a.description || '')}</span></td>
-                <td><span class="badge ${a.active ? 'ok' : 'off'}">${a.active ? 'ativa' : 'desativada'}</span></td>
-                <td>${a.counts.apiKeys}</td>
-                <td>${a.counts.collections}</td>
-                <td>${a.counts.files}</td>
-                <td class="muted">${fmtDate(a.createdAt)}</td>
-                <td><button data-manage="${a.id}">Gerenciar</button></td>
+              <tr class="hover:bg-neutral-50 cursor-pointer" data-open="${h(a.id)}">
+                <td class="px-4 py-3">
+                  <div class="font-medium">${h(a.name)}</div>
+                  ${a.description ? `<div class="text-xs text-neutral-500 mt-0.5">${h(a.description)}</div>` : ''}
+                </td>
+                <td class="px-4 py-3">
+                  ${a.active
+                    ? '<span class="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">● ativa</span>'
+                    : '<span class="inline-flex items-center gap-1 text-xs text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5">○ desativada</span>'}
+                </td>
+                <td class="px-4 py-3 text-right mono">${a.counts.apiKeys}</td>
+                <td class="px-4 py-3 text-right mono">${a.counts.collections}</td>
+                <td class="px-4 py-3 text-right mono">${a.counts.files}</td>
+                <td class="px-4 py-3 text-neutral-500 text-xs">${fmtDate(a.createdAt)}</td>
+                <td class="px-4 py-3 text-right">
+                  <span class="text-neutral-400">→</span>
+                </td>
               </tr>`).join('')}
           </tbody>
         </table>
-      `;
-      box.querySelectorAll('[data-manage]').forEach(btn => {
-        btn.onclick = () => openAppModal(btn.dataset.manage);
-      });
-    } catch (err) { toast(err.message, 'err'); }
-  }
+      </div>`;
+    $$('[data-open]', box).forEach(tr => tr.onclick = () => openAppModal(tr.dataset.open));
+  } catch (err) { toast(err.message, 'err'); }
+}
 
-  function openNewAppModal() {
-    openModal(`
-      <h3>Nova aplicação</h3>
-      <form id="f">
-        <label>Nome (único, só letras/números/_-)</label>
-        <input name="name" required pattern="[a-zA-Z0-9_-]+" />
-        <div style="height:10px"></div>
-        <label>Descrição</label>
-        <textarea name="description" rows="2"></textarea>
-        <div class="row">
-          <button type="button" data-close>Cancelar</button>
-          <button class="primary" type="submit">Criar</button>
+// ---------- Modais ----------
+
+function openNewAppModal() {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-semibold mb-4">Nova aplicação</h3>
+      <form id="f" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-neutral-600 mb-1">Nome <span class="text-neutral-400">(único, letras/números/_-)</span></label>
+          <input name="name" required pattern="[a-zA-Z0-9_-]+" maxlength="64"
+            class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent mono" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-neutral-600 mb-1">Descrição <span class="text-neutral-400">(opcional)</span></label>
+          <textarea name="description" rows="2" maxlength="500"
+            class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm bg-neutral-900 text-white rounded-md hover:bg-neutral-800">Criar aplicação</button>
         </div>
       </form>
-    `, (modal) => {
-      modal.querySelector('#f').onsubmit = async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        try {
-          await api.createApp({ name: fd.get('name'), description: fd.get('description') || undefined });
-          closeModal(); toast('Aplicação criada', 'ok'); renderApps(); renderStats();
-        } catch (err) { toast(err.message, 'err'); }
-      };
-    });
-  }
+    </div>
+  `, (modal) => {
+    $('#f', modal).onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await api.createApp({ name: fd.get('name'), description: fd.get('description') || undefined });
+        closeModal(); toast('Aplicação criada'); renderApps(); renderStats();
+      } catch (err) { toast(err.message, 'err'); }
+    };
+  });
+}
 
-  async function openAppModal(id) {
-    let app = (await api.listApps()).find(a => a.id === id);
-    if (!app) return;
-    let keys = await api.listKeys(id);
+async function openAppModal(appId) {
+  const apps = await api.listApps();
+  const app = apps.find(a => a.id === appId);
+  if (!app) return toast('Aplicação não encontrada', 'err');
 
-    openModal(`
-      <h3>${escapeHtml(app.name)}</h3>
-      <p class="muted">${escapeHtml(app.description || 'Sem descrição')}</p>
-      <div class="flex between">
-        <span class="badge ${app.active ? 'ok' : 'off'}">${app.active ? 'ativa' : 'desativada'}</span>
-        <div class="flex">
-          <button id="toggle">${app.active ? 'Desativar' : 'Ativar'}</button>
-          <button class="danger" id="delete">Excluir</button>
+  openModal(`
+    <div class="p-6 border-b border-neutral-200">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-xl font-semibold">${h(app.name)}</h3>
+          <p class="text-sm text-neutral-500 mt-0.5">${h(app.description || 'Sem descrição')}</p>
+          <div class="mt-2 flex items-center gap-2 text-xs text-neutral-500 mono">
+            <span>id:</span> <span>${h(app.id)}</span>
+            <button data-copy="${h(app.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar">⎘</button>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button id="toggle-active" class="text-xs px-3 py-1.5 border border-neutral-300 rounded-md hover:bg-neutral-50">
+            ${app.active ? 'Desativar' : 'Ativar'}
+          </button>
+          <button id="delete-app" class="text-xs px-3 py-1.5 border border-red-300 text-red-700 rounded-md hover:bg-red-50">
+            Excluir
+          </button>
         </div>
       </div>
-      <div class="sep"></div>
-      <div class="flex between">
-        <h3 style="margin:0">Chaves de API</h3>
-        <button class="primary" id="new-key">+ Nova chave</button>
-      </div>
-      <div id="keys" style="margin-top:10px"></div>
-      <div class="row">
-        <button type="button" data-close>Fechar</button>
-      </div>
-    `, (modal) => {
-      const renderKeys = () => {
-        const box = modal.querySelector('#keys');
-        if (!keys.length) { box.innerHTML = '<p class="muted">Sem chaves ainda.</p>'; return; }
-        box.innerHTML = `<table><thead><tr><th>Nome</th><th>Prefixo</th><th>Escopos</th><th>Último uso</th><th>Status</th><th></th></tr></thead><tbody>
-          ${keys.map(k => `
+    </div>
+    <div class="border-b border-neutral-200 px-6">
+      <nav class="flex gap-6 text-sm -mb-px">
+        <button data-tab="keys" class="tab-btn py-3 border-b-2 border-neutral-900 font-medium">Chaves de API</button>
+        <button data-tab="collections" class="tab-btn py-3 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900">Coleções</button>
+        <button data-tab="files" class="tab-btn py-3 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900">Arquivos</button>
+      </nav>
+    </div>
+    <div id="tab-content" class="p-6 overflow-y-auto"></div>
+    <div class="p-4 border-t border-neutral-200 flex justify-end">
+      <button data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Fechar</button>
+    </div>
+  `, (modal) => {
+    $$('[data-copy]', modal).forEach(b => b.onclick = () => copyText(b.dataset.copy));
+
+    const tabs = $$('.tab-btn', modal);
+    const switchTab = (name) => {
+      tabs.forEach(t => {
+        const active = t.dataset.tab === name;
+        t.className = `tab-btn py-3 border-b-2 ${active ? 'border-neutral-900 font-medium' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`;
+      });
+      renderTab(name);
+    };
+    tabs.forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+    async function renderTab(name) {
+      const content = $('#tab-content', modal);
+      content.innerHTML = '<div class="text-sm text-neutral-500">Carregando…</div>';
+      try {
+        if (name === 'keys')        return renderKeysTab(content, appId);
+        if (name === 'collections') return renderCollectionsTab(content, appId);
+        if (name === 'files')       return renderFilesTab(content, appId);
+      } catch (err) { content.innerHTML = `<div class="text-sm text-red-600">${h(err.message)}</div>`; }
+    }
+
+    $('#toggle-active', modal).onclick = async () => {
+      try {
+        await api.updateApp(appId, { active: !app.active });
+        closeModal(); renderApps(); renderStats();
+        toast(app.active ? 'Aplicação desativada' : 'Aplicação ativada');
+      } catch (err) { toast(err.message, 'err'); }
+    };
+    $('#delete-app', modal).onclick = async () => {
+      if (!confirm(`Excluir a aplicação "${app.name}"?\n\nTodos os seus documentos, versões, chaves e metadados de arquivos serão apagados. Os binários no disco permanecem — remova manualmente se necessário.`)) return;
+      try {
+        await api.deleteApp(appId);
+        closeModal(); renderApps(); renderStats();
+        toast('Aplicação excluída');
+      } catch (err) { toast(err.message, 'err'); }
+    };
+
+    switchTab('keys');
+  });
+}
+
+async function renderKeysTab(root, appId) {
+  const keys = await api.listKeys(appId);
+  root.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <p class="text-sm text-neutral-600">Chaves identificam uma aplicação consumidora. O valor só aparece uma vez.</p>
+      <button id="new-key" class="text-sm bg-neutral-900 text-white px-3 py-1.5 rounded-md hover:bg-neutral-800">+ Nova chave</button>
+    </div>
+    ${keys.length === 0
+      ? '<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Sem chaves criadas.</div>'
+      : `<div class="border border-neutral-200 rounded-md overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+              <tr>
+                <th class="text-left font-medium px-3 py-2">Nome</th>
+                <th class="text-left font-medium px-3 py-2">Prefixo</th>
+                <th class="text-left font-medium px-3 py-2">Escopos</th>
+                <th class="text-left font-medium px-3 py-2">Último uso</th>
+                <th class="text-left font-medium px-3 py-2">Status</th>
+                <th class="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-100">
+              ${keys.map(k => `
+                <tr>
+                  <td class="px-3 py-2.5 font-medium">${h(k.name)}</td>
+                  <td class="px-3 py-2.5 mono text-xs text-neutral-600">${h(k.prefix)}…</td>
+                  <td class="px-3 py-2.5">
+                    ${k.scopes.map(s => `<span class="inline-block text-[10px] uppercase tracking-wide bg-neutral-100 text-neutral-700 px-1.5 py-0.5 rounded">${h(s)}</span>`).join(' ')}
+                  </td>
+                  <td class="px-3 py-2.5 text-xs text-neutral-500">${fmtDate(k.lastUsedAt)}</td>
+                  <td class="px-3 py-2.5">
+                    ${k.revokedAt
+                      ? '<span class="text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">revogada</span>'
+                      : '<span class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">ativa</span>'}
+                  </td>
+                  <td class="px-3 py-2.5 text-right">
+                    ${k.revokedAt ? '' : `<button data-revoke="${h(k.id)}" class="text-xs text-red-700 hover:underline">Revogar</button>`}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`}
+  `;
+  $('#new-key', root).onclick = () => openNewKeyModal(appId, () => renderKeysTab(root, appId));
+  $$('[data-revoke]', root).forEach(b => b.onclick = async () => {
+    if (!confirm('Revogar esta chave? A ação é permanente.')) return;
+    try { await api.revokeKey(appId, b.dataset.revoke); renderKeysTab(root, appId); renderStats(); toast('Chave revogada'); }
+    catch (err) { toast(err.message, 'err'); }
+  });
+}
+
+function openNewKeyModal(appId, onCreated) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-semibold mb-1">Nova chave de API</h3>
+      <p class="text-xs text-neutral-500 mb-4">O valor completo aparecerá <strong>uma única vez</strong>. Guarde em local seguro.</p>
+      <form id="f" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-neutral-600 mb-1">Nome</label>
+          <input name="name" required placeholder="ex.: produção, mobile-ios, scripts-cron"
+            class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-neutral-600 mb-2">Escopos</label>
+          <div class="grid grid-cols-2 gap-2">
+            ${['read','write','delete','files'].map(s => `
+              <label class="flex items-start gap-2 border border-neutral-200 rounded-md px-3 py-2 hover:border-neutral-400 cursor-pointer">
+                <input type="checkbox" name="scopes" value="${s}" ${s==='read'||s==='write'?'checked':''} class="mt-0.5" />
+                <div>
+                  <div class="text-sm font-medium">${s}</div>
+                  <div class="text-xs text-neutral-500">${{
+                    read:'Ler documentos',
+                    write:'Criar e atualizar',
+                    delete:'Deletar',
+                    files:'Upload/download de arquivos'
+                  }[s]}</div>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm bg-neutral-900 text-white rounded-md hover:bg-neutral-800">Gerar chave</button>
+        </div>
+      </form>
+    </div>
+  `, (modal) => {
+    $('#f', modal).onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const scopes = fd.getAll('scopes');
+      if (!scopes.length) return toast('Selecione ao menos um escopo', 'err');
+      try {
+        const created = await api.createKey(appId, { name: fd.get('name'), scopes });
+        openModal(`
+          <div class="p-6">
+            <div class="flex items-start gap-3 mb-4">
+              <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-lg">✓</div>
+              <div>
+                <h3 class="text-lg font-semibold">Chave criada</h3>
+                <p class="text-xs text-neutral-500">Este valor <strong>não será exibido novamente</strong>. Copie-o agora.</p>
+              </div>
+            </div>
+            <div class="bg-neutral-50 border border-neutral-200 rounded-md p-3 mono text-xs break-all" id="tok">${h(created.token)}</div>
+            <div class="flex justify-end gap-2 mt-4">
+              <button id="copy-tok" class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Copiar</button>
+              <button data-close class="px-4 py-2 text-sm bg-neutral-900 text-white rounded-md hover:bg-neutral-800">Entendi, guardei</button>
+            </div>
+          </div>
+        `, (m) => {
+          $('#copy-tok', m).onclick = () => copyText(created.token);
+        });
+        if (onCreated) onCreated();
+        renderStats();
+      } catch (err) { toast(err.message, 'err'); }
+    };
+  });
+}
+
+async function renderCollectionsTab(root, appId) {
+  const cols = await api.listCollections(appId);
+  if (!cols.length) {
+    root.innerHTML = `<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">
+      Sem coleções ainda. Coleções são criadas automaticamente no primeiro <span class="mono">POST /v1/:coleção</span>.
+    </div>`;
+    return;
+  }
+  root.innerHTML = `
+    <div class="space-y-3">
+      ${cols.map(c => `
+        <details class="border border-neutral-200 rounded-md" data-col="${h(c.name)}">
+          <summary class="flex items-center justify-between px-4 py-3 hover:bg-neutral-50">
+            <div class="flex items-center gap-3">
+              <span class="text-neutral-400 mono text-xs">▸</span>
+              <div>
+                <div class="font-medium mono text-sm">${h(c.name)}</div>
+                <div class="text-xs text-neutral-500">${c.documents} documento${c.documents===1?'':'s'}</div>
+              </div>
+            </div>
+            <span class="text-xs text-neutral-400">${fmtDate(c.createdAt)}</span>
+          </summary>
+          <div class="border-t border-neutral-200 p-3 docs-wrap">
+            <div class="text-xs text-neutral-500">Carregando documentos…</div>
+          </div>
+        </details>
+      `).join('')}
+    </div>`;
+  $$('details', root).forEach(d => {
+    d.addEventListener('toggle', async () => {
+      if (!d.open || d.dataset.loaded) return;
+      const wrap = $('.docs-wrap', d);
+      try {
+        const { items } = await api.listDocuments(appId, d.dataset.col);
+        d.dataset.loaded = '1';
+        if (!items.length) { wrap.innerHTML = '<div class="text-xs text-neutral-500">Vazio.</div>'; return; }
+        wrap.innerHTML = items.map(doc => `
+          <div class="border border-neutral-100 rounded bg-neutral-50 p-2 mb-2 last:mb-0">
+            <div class="flex items-center justify-between mb-1 text-xs">
+              <span class="mono text-neutral-600">${h(doc.id)}</span>
+              <span class="text-neutral-400">v${doc.version} · ${fmtDate(doc.updatedAt)}</span>
+            </div>
+            <pre class="mono text-xs text-neutral-800 overflow-x-auto max-h-40">${h(JSON.stringify(doc.data, null, 2))}</pre>
+          </div>
+        `).join('');
+      } catch (err) { wrap.innerHTML = `<div class="text-xs text-red-600">${h(err.message)}</div>`; }
+    });
+  });
+}
+
+async function renderFilesTab(root, appId) {
+  const { items } = await api.listFiles(appId);
+  if (!items.length) {
+    root.innerHTML = `<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Nenhum arquivo enviado ainda.</div>`;
+    return;
+  }
+  root.innerHTML = `
+    <div class="border border-neutral-200 rounded-md overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left font-medium px-3 py-2">Nome</th>
+            <th class="text-left font-medium px-3 py-2">Coleção</th>
+            <th class="text-left font-medium px-3 py-2">Tipo</th>
+            <th class="text-right font-medium px-3 py-2">Tamanho</th>
+            <th class="text-left font-medium px-3 py-2">Enviado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-100">
+          ${items.map(f => `
             <tr>
-              <td>${escapeHtml(k.name)}</td>
-              <td><code>${escapeHtml(k.prefix)}…</code></td>
-              <td>${k.scopes.map(s => `<span class="badge">${s}</span>`).join(' ')}</td>
-              <td class="muted">${fmtDate(k.lastUsedAt)}</td>
-              <td>${k.revokedAt ? '<span class="badge off">revogada</span>' : '<span class="badge ok">ativa</span>'}</td>
-              <td>${k.revokedAt ? '' : `<button class="danger" data-revoke="${k.id}">Revogar</button>`}</td>
+              <td class="px-3 py-2.5">
+                <div class="font-medium">${h(f.originalName)}</div>
+                <div class="text-xs text-neutral-400 mono">${h(f.sha256.slice(0,16))}…</div>
+              </td>
+              <td class="px-3 py-2.5 mono text-xs">${h(f.collection)}</td>
+              <td class="px-3 py-2.5 text-xs text-neutral-600">${h(f.mimeType)}</td>
+              <td class="px-3 py-2.5 text-right mono text-xs">${fmtBytes(f.size)}</td>
+              <td class="px-3 py-2.5 text-xs text-neutral-500">${fmtDate(f.createdAt)}</td>
             </tr>
           `).join('')}
-        </tbody></table>`;
-        box.querySelectorAll('[data-revoke]').forEach(b => {
-          b.onclick = async () => {
-            if (!confirm('Revogar esta chave? Essa ação é permanente.')) return;
-            try { await api.revokeKey(id, b.dataset.revoke); keys = await api.listKeys(id); renderKeys(); toast('Chave revogada'); }
-            catch (err) { toast(err.message, 'err'); }
-          };
-        });
-      };
-      renderKeys();
+        </tbody>
+      </table>
+    </div>`;
+}
 
-      modal.querySelector('#toggle').onclick = async () => {
-        try { await api.updateApp(id, { active: !app.active }); app.active = !app.active; closeModal(); renderApps(); renderStats(); }
-        catch (err) { toast(err.message, 'err'); }
-      };
-      modal.querySelector('#delete').onclick = async () => {
-        if (!confirm(`Excluir a aplicação "${app.name}"?\n\nTodos os seus documentos, versões e metadados de arquivos serão apagados. Os arquivos físicos no disco permanecem — remova manualmente se necessário.`)) return;
-        try { await api.deleteApp(id); closeModal(); toast('Aplicação excluída'); renderApps(); renderStats(); }
-        catch (err) { toast(err.message, 'err'); }
-      };
-      modal.querySelector('#new-key').onclick = () => openNewKeyModal(id, async () => { keys = await api.listKeys(id); renderKeys(); });
-    });
+// ---------- Boot ----------
+async function boot() {
+  try {
+    await api.me();
+    if (!location.hash || location.hash === '#/login') location.hash = '#/';
+    renderDashboard();
+  } catch {
+    location.hash = '#/login';
+    renderLogin();
   }
-
-  function openNewKeyModal(appId, onCreated) {
-    openModal(`
-      <h3>Nova chave de API</h3>
-      <form id="f">
-        <label>Nome (ex.: produção, mobile-ios)</label>
-        <input name="name" required />
-        <div style="height:10px"></div>
-        <label>Escopos</label>
-        <div class="scopes">
-          <label><input type="checkbox" name="scopes" value="read" checked /> read</label>
-          <label><input type="checkbox" name="scopes" value="write" checked /> write</label>
-          <label><input type="checkbox" name="scopes" value="delete" /> delete</label>
-          <label><input type="checkbox" name="scopes" value="files" /> files</label>
-        </div>
-        <div class="row">
-          <button type="button" data-close>Cancelar</button>
-          <button class="primary" type="submit">Gerar chave</button>
-        </div>
-      </form>
-    `, (modal) => {
-      modal.querySelector('#f').onsubmit = async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const scopes = fd.getAll('scopes');
-        if (!scopes.length) return toast('Selecione ao menos um escopo', 'err');
-        try {
-          const created = await api.createKey(appId, { name: fd.get('name'), scopes });
-          // Mostra o token UMA ÚNICA VEZ.
-          openModal(`
-            <h3>Chave criada — copie agora</h3>
-            <p class="muted">Este valor <strong>não será exibido novamente</strong>.</p>
-            <textarea rows="3" readonly onclick="this.select()">${escapeHtml(created.token)}</textarea>
-            <div class="row">
-              <button class="primary" data-close>Entendi, guardei a chave</button>
-            </div>
-          `);
-          onCreated && onCreated();
-          renderStats();
-        } catch (err) { toast(err.message, 'err'); }
-      };
-    });
-  }
-
-  // ---------- Modal utils ----------
-  function openModal(html, afterMount) {
-    closeModal();
-    const bg = document.createElement('div');
-    bg.className = 'modal-bg';
-    bg.innerHTML = `<div class="modal">${html}</div>`;
-    document.body.appendChild(bg);
-    bg.querySelectorAll('[data-close]').forEach(el => el.onclick = closeModal);
-    bg.addEventListener('click', e => { if (e.target === bg) closeModal(); });
-    if (afterMount) afterMount(bg.querySelector('.modal'));
-  }
-  function closeModal() {
-    document.querySelectorAll('.modal-bg').forEach(el => el.remove());
-  }
-
-  // ---------- Router mínimo ----------
-  async function boot() {
-    try {
-      await api.me();
-      if (!location.hash || location.hash === '#/login') location.hash = '#/';
-      renderDashboard();
-    } catch {
-      location.hash = '#/login';
-      renderLogin();
-    }
-  }
-  window.addEventListener('hashchange', () => {
-    if (location.hash === '#/login') renderLogin();
-    else renderDashboard();
-  });
-  boot();
-  </script>
+}
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#/login') renderLogin();
+  else renderDashboard();
+});
+boot();
+</script>
 </body>
 </html>
