@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { apiKeyAuth } from '../auth.js';
 import { Errors } from '../errors.js';
+import { logger } from '../logger.js';
 import { deleteFile, readFile, saveFile } from '../storage.js';
 
 const CollectionNameSchema = z
@@ -24,11 +25,27 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post('/:collection', { preHandler: apiKeyAuth('files') }, async (req) => {
     const { collection } = z.object({ collection: CollectionNameSchema }).parse(req.params);
 
+    // Quota: se a Application definiu `storageQuotaBytes`, bloqueia upload
+    // se a soma atual já estourou. Checagem antes de gravar no disco.
+    const appRow = await prisma.application.findUnique({
+      where: { id: req.application!.id },
+      select: { storageQuotaBytes: true },
+    });
+    const quota = appRow?.storageQuotaBytes != null ? BigInt(appRow.storageQuotaBytes) : null;
+
+    if (quota !== null && quota > 0n) {
+      const used = await prisma.fileAsset.aggregate({
+        _sum: { size: true },
+        where: { applicationId: req.application!.id, deletedAt: null },
+      });
+      if (BigInt(used._sum.size ?? 0) >= quota) {
+        throw Errors.tooLarge('Quota de armazenamento excedida.');
+      }
+    }
+
     const data = await req.file();
     if (!data) throw Errors.badRequest('Nenhum arquivo enviado.');
 
-    // Nota: @fastify/multipart já aplica o limite de tamanho globalmente,
-    // mas verificamos truncated após consumir o stream.
     const saved = await saveFile(
       req.application!.id,
       collection,
@@ -36,9 +53,19 @@ const routes: FastifyPluginAsync = async (app) => {
       data.file,
     );
     if (data.file.truncated) {
-      // Saiu do limite; rollback no disco e erro claro.
       await deleteFile(saved.storedPath);
       throw Errors.tooLarge();
+    }
+
+    if (quota !== null && quota > 0n) {
+      const used = await prisma.fileAsset.aggregate({
+        _sum: { size: true },
+        where: { applicationId: req.application!.id, deletedAt: null },
+      });
+      if (BigInt(used._sum.size ?? 0) + BigInt(saved.size) > quota) {
+        await deleteFile(saved.storedPath);
+        throw Errors.tooLarge('Quota de armazenamento excedida.');
+      }
     }
 
     const record = await prisma.fileAsset.create({
@@ -66,16 +93,19 @@ const routes: FastifyPluginAsync = async (app) => {
       })
       .parse(req.query);
 
+    const where = {
+      applicationId: req.application!.id,
+      collection,
+      deletedAt: null,
+    };
     const [items, total] = await Promise.all([
       prisma.fileAsset.findMany({
-        where: { applicationId: req.application!.id, collection },
+        where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      prisma.fileAsset.count({
-        where: { applicationId: req.application!.id, collection },
-      }),
+      prisma.fileAsset.count({ where }),
     ]);
 
     return { ok: true, data: { items: items.map(serializeFile), total, limit, offset } };
@@ -85,12 +115,15 @@ const routes: FastifyPluginAsync = async (app) => {
   app.get('/:id', { preHandler: apiKeyAuth('files') }, async (req, reply) => {
     const { id } = z.object({ id: FileIdSchema }).parse(req.params);
     const file = await prisma.fileAsset.findUnique({ where: { id } });
-    if (!file || file.applicationId !== req.application!.id) throw Errors.notFound('Arquivo');
+    if (!file || file.applicationId !== req.application!.id || file.deletedAt) {
+      throw Errors.notFound('Arquivo');
+    }
 
     const stream = await readFile(file.storedPath);
     reply
       .header('Content-Type', file.mimeType)
       .header('Content-Length', file.size)
+      .header('X-Content-Type-Options', 'nosniff')
       .header(
         'Content-Disposition',
         `attachment; filename="${encodeURIComponent(file.originalName)}"`,
@@ -99,14 +132,23 @@ const routes: FastifyPluginAsync = async (app) => {
     return reply.send(stream);
   });
 
-  // ---- Delete ----
+  // ---- Delete (soft) ----
+  // Marca `deletedAt` primeiro; remoção do disco é best-effort. Se o unlink
+  // falhar, o registro permanece como "pendente" para um job de reconciliação.
   app.delete('/:id', { preHandler: apiKeyAuth('files', 'delete') }, async (req) => {
     const { id } = z.object({ id: FileIdSchema }).parse(req.params);
     const file = await prisma.fileAsset.findUnique({ where: { id } });
-    if (!file || file.applicationId !== req.application!.id) throw Errors.notFound('Arquivo');
+    if (!file || file.applicationId !== req.application!.id || file.deletedAt) {
+      throw Errors.notFound('Arquivo');
+    }
 
-    await deleteFile(file.storedPath);
-    await prisma.fileAsset.delete({ where: { id: file.id } });
+    await prisma.fileAsset.update({
+      where: { id: file.id },
+      data: { deletedAt: new Date() },
+    });
+    deleteFile(file.storedPath).catch((err) => {
+      logger.warn({ err: (err as Error).message, id: file.id }, 'Falha ao remover arquivo do disco');
+    });
 
     return { ok: true, data: { id: file.id, deleted: true } };
   });

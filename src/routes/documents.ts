@@ -10,7 +10,62 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { apiKeyAuth } from '../auth.js';
+import { config } from '../config.js';
 import { Errors } from '../errors.js';
+
+/**
+ * Valida o payload JSON contra limites de tamanho, profundidade e número
+ * de chaves — defesa contra DoS por payload malicioso.
+ */
+function validateJsonPayload(data: unknown): void {
+  const serialized = JSON.stringify(data);
+  if (Buffer.byteLength(serialized, 'utf8') > config.JSON_MAX_BYTES) {
+    throw Errors.tooLarge(`Payload JSON excede ${config.JSON_MAX_BYTES} bytes.`);
+  }
+  let keys = 0;
+  const walk = (value: unknown, depth: number): void => {
+    if (depth > config.JSON_MAX_DEPTH) {
+      throw Errors.badRequest(`Profundidade do JSON excede ${config.JSON_MAX_DEPTH}.`);
+    }
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value)) {
+        for (const item of value) walk(item, depth + 1);
+      } else {
+        for (const [, v] of Object.entries(value as Record<string, unknown>)) {
+          keys += 1;
+          if (keys > config.JSON_MAX_KEYS) {
+            throw Errors.badRequest(`Número de chaves do JSON excede ${config.JSON_MAX_KEYS}.`);
+          }
+          walk(v, depth + 1);
+        }
+      }
+    }
+  };
+  walk(data, 0);
+}
+
+/**
+ * Após inserir uma nova versão, apaga versões antigas excedendo a retenção.
+ * Config `DOC_VERSION_RETENTION = 0` desativa a poda.
+ */
+async function pruneOldVersions(
+  tx: Prisma.TransactionClient,
+  documentId: string,
+): Promise<void> {
+  const keep = config.DOC_VERSION_RETENTION;
+  if (keep <= 0) return;
+  const total = await tx.documentVersion.count({ where: { documentId } });
+  if (total <= keep) return;
+  const stale = await tx.documentVersion.findMany({
+    where: { documentId },
+    orderBy: { version: 'desc' },
+    skip: keep,
+    select: { id: true },
+  });
+  if (stale.length > 0) {
+    await tx.documentVersion.deleteMany({ where: { id: { in: stale.map((s) => s.id) } } });
+  }
+}
 
 // Reutilizamos esta validação em várias rotas.
 const CollectionNameSchema = z
@@ -62,6 +117,7 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post('/:collection', { preHandler: apiKeyAuth('write') }, async (req) => {
     const { collection } = z.object({ collection: CollectionNameSchema }).parse(req.params);
     const data = z.record(z.unknown()).parse(req.body);
+    validateJsonPayload(data);
 
     const col = await ensureCollection(req.application!.id, collection);
     const json = data as Prisma.InputJsonValue;
@@ -121,9 +177,11 @@ const routes: FastifyPluginAsync = async (app) => {
       .object({ collection: CollectionNameSchema, id: DocumentIdSchema })
       .parse(req.params);
     const patch = z.record(z.unknown()).parse(req.body);
+    validateJsonPayload(patch);
 
     const doc = await findDocumentOrFail(id, req.application!.id, collection);
     const next = deepMerge(doc.data, patch) as Prisma.InputJsonValue;
+    validateJsonPayload(next);
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.document.update({
@@ -133,6 +191,7 @@ const routes: FastifyPluginAsync = async (app) => {
       await tx.documentVersion.create({
         data: { documentId: u.id, version: u.version, data: next },
       });
+      await pruneOldVersions(tx, u.id);
       return u;
     });
 
@@ -145,6 +204,7 @@ const routes: FastifyPluginAsync = async (app) => {
       .object({ collection: CollectionNameSchema, id: DocumentIdSchema })
       .parse(req.params);
     const data = z.record(z.unknown()).parse(req.body);
+    validateJsonPayload(data);
 
     const doc = await findDocumentOrFail(id, req.application!.id, collection);
     const json = data as Prisma.InputJsonValue;
@@ -157,6 +217,7 @@ const routes: FastifyPluginAsync = async (app) => {
       await tx.documentVersion.create({
         data: { documentId: u.id, version: u.version, data: json },
       });
+      await pruneOldVersions(tx, u.id);
       return u;
     });
 

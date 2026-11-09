@@ -40,7 +40,15 @@ const routes: FastifyPluginAsync = async (app) => {
   });
 
   // ---- Login ----
-  app.post('/login', async (req, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: config.LOGIN_RATE_LIMIT_MAX,
+        timeWindow: config.LOGIN_RATE_LIMIT_WINDOW,
+        keyGenerator: (req) => `login:${req.ip}`,
+      },
+    },
+  }, async (req, reply) => {
     const { username, password } = z
       .object({ username: z.string().min(1), password: z.string().min(1) })
       .parse(req.body);
@@ -322,14 +330,15 @@ const routes: FastifyPluginAsync = async (app) => {
       })
       .parse(req.query);
 
+    const where = { applicationId: id, deletedAt: null };
     const [items, total] = await Promise.all([
       prisma.fileAsset.findMany({
-        where: { applicationId: id },
+        where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      prisma.fileAsset.count({ where: { applicationId: id } }),
+      prisma.fileAsset.count({ where }),
     ]);
     return {
       ok: true,
@@ -502,12 +511,13 @@ const routes: FastifyPluginAsync = async (app) => {
       .object({ id: z.string(), fileId: z.string() })
       .parse(req.params);
     const file = await prisma.fileAsset.findUnique({ where: { id: fileId } });
-    if (!file || file.applicationId !== id) throw Errors.notFound('Arquivo');
+    if (!file || file.applicationId !== id || file.deletedAt) throw Errors.notFound('Arquivo');
 
     const stream = await storageRead(file.storedPath);
     reply
       .header('Content-Type', file.mimeType)
       .header('Content-Length', file.size)
+      .header('X-Content-Type-Options', 'nosniff')
       .header(
         'Content-Disposition',
         `attachment; filename="${encodeURIComponent(file.originalName)}"`,
@@ -515,16 +525,19 @@ const routes: FastifyPluginAsync = async (app) => {
     return reply.send(stream);
   });
 
-  // --- Deletar arquivo (admin) ---
+  // --- Deletar arquivo (admin) — soft delete ---
   app.delete('/api/apps/:id/files/:fileId', { preHandler: adminAuth }, async (req) => {
     const { id, fileId } = z
       .object({ id: z.string(), fileId: z.string() })
       .parse(req.params);
     const file = await prisma.fileAsset.findUnique({ where: { id: fileId } });
-    if (!file || file.applicationId !== id) throw Errors.notFound('Arquivo');
+    if (!file || file.applicationId !== id || file.deletedAt) throw Errors.notFound('Arquivo');
 
-    await storageDelete(file.storedPath);
-    await prisma.fileAsset.delete({ where: { id: file.id } });
+    await prisma.fileAsset.update({
+      where: { id: file.id },
+      data: { deletedAt: new Date() },
+    });
+    storageDelete(file.storedPath).catch(() => {});
     return { ok: true, data: { id: fileId, deleted: true } };
   });
 
@@ -543,8 +556,11 @@ const routes: FastifyPluginAsync = async (app) => {
       prisma.collection.count({ where: { applicationId: id } }),
       prisma.document.count({ where: { collection: { applicationId: id }, deletedAt: null } }),
       prisma.documentVersion.count({ where: { document: { collection: { applicationId: id } } } }),
-      prisma.fileAsset.count({ where: { applicationId: id } }),
-      prisma.fileAsset.aggregate({ _sum: { size: true }, where: { applicationId: id } }),
+      prisma.fileAsset.count({ where: { applicationId: id, deletedAt: null } }),
+      prisma.fileAsset.aggregate({
+        _sum: { size: true },
+        where: { applicationId: id, deletedAt: null },
+      }),
       prisma.apiKey.count({ where: { applicationId: id, revokedAt: null } }),
 
       prisma.accessLog.count({ where: { applicationId: id } }),
@@ -712,8 +728,8 @@ const routes: FastifyPluginAsync = async (app) => {
       prisma.application.count(),
       prisma.apiKey.count({ where: { revokedAt: null } }),
       prisma.document.count({ where: { deletedAt: null } }),
-      prisma.fileAsset.count(),
-      prisma.fileAsset.aggregate({ _sum: { size: true } }),
+      prisma.fileAsset.count({ where: { deletedAt: null } }),
+      prisma.fileAsset.aggregate({ _sum: { size: true }, where: { deletedAt: null } }),
     ]);
     return {
       ok: true,

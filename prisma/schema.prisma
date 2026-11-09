@@ -21,12 +21,14 @@ datasource db {
 /// Aplicações que consomem a API.
 /// Cada aplicação é isolada: só enxerga suas próprias coleções/arquivos.
 model Application {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  name               String    @unique
+  description        String?
+  active             Boolean   @default(true)
+  /// Quota de armazenamento em bytes. `null` = sem limite.
+  storageQuotaBytes  BigInt?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   apiKeys     ApiKey[]
   collections Collection[]
@@ -37,13 +39,16 @@ model Application {
 
 /// Chaves de API.
 /// Guardamos apenas o hash — o valor completo só é exibido na criação.
+/// `hash`: HMAC-SHA256(SESSION_SECRET, token) em hex para keys novas;
+///         hashes legados em bcrypt (começam com `$2`) seguem válidos e
+///         são migrados em background no próximo uso.
 model ApiKey {
   id            String    @id @default(cuid())
   applicationId String
   name          String
-  prefix        String    @unique // primeiros 8 chars, para exibir no painel
-  hash          String    // hash bcrypt do segredo
-  scopes        String[]  // ex: ["read","write","delete","files"]
+  prefix        String    @unique // primeiros 16 chars do token, para lookup e exibição no painel
+  hash          String
+  scopes        String[]
   lastUsedAt    DateTime?
   revokedAt     DateTime?
   createdAt     DateTime  @default(now())
@@ -82,8 +87,8 @@ model Document {
   collection   Collection        @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   versions     DocumentVersion[]
 
-  @@index([collectionId])
-  @@index([deletedAt])
+  // Índice composto suporta a query quente `WHERE collectionId=? AND deletedAt IS NULL`.
+  @@index([collectionId, deletedAt])
   @@map("documents")
 }
 
@@ -102,21 +107,25 @@ model DocumentVersion {
 }
 
 /// Arquivos salvos em disco. O binário vive em STORAGE_ROOT; aqui só metadata.
+/// `deletedAt` implementa soft-delete: o registro permanece para auditoria
+/// e reconciliação enquanto o arquivo físico pode já ter sido removido.
 model FileAsset {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   applicationId String
-  collection    String   // nome lógico da "coleção de arquivos" (string livre)
+  collection    String
   originalName  String
-  storedPath    String   // caminho relativo a STORAGE_ROOT
+  storedPath    String
   size          Int
   mimeType      String
   sha256        String
   metadata      Json?
-  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
 
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
-  @@index([applicationId, collection])
+  @@index([applicationId, collection, deletedAt])
+  @@index([applicationId, deletedAt])
   @@index([sha256])
   @@map("files")
 }
