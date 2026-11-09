@@ -6,6 +6,7 @@
  * UPDATE (PATCH/PUT) sempre gera uma linha em `document_versions`.
  */
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { apiKeyAuth } from '../auth.js';
@@ -63,12 +64,13 @@ const routes: FastifyPluginAsync = async (app) => {
     const data = z.record(z.unknown()).parse(req.body);
 
     const col = await ensureCollection(req.application!.id, collection);
+    const json = data as Prisma.InputJsonValue;
     const doc = await prisma.$transaction(async (tx) => {
       const created = await tx.document.create({
-        data: { collectionId: col.id, data },
+        data: { collectionId: col.id, data: json },
       });
       await tx.documentVersion.create({
-        data: { documentId: created.id, version: created.version, data },
+        data: { documentId: created.id, version: created.version, data: json },
       });
       return created;
     });
@@ -121,7 +123,7 @@ const routes: FastifyPluginAsync = async (app) => {
     const patch = z.record(z.unknown()).parse(req.body);
 
     const doc = await findDocumentOrFail(id, req.application!.id, collection);
-    const next = deepMerge(doc.data, patch) as Record<string, unknown>;
+    const next = deepMerge(doc.data, patch) as Prisma.InputJsonValue;
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.document.update({
@@ -145,14 +147,15 @@ const routes: FastifyPluginAsync = async (app) => {
     const data = z.record(z.unknown()).parse(req.body);
 
     const doc = await findDocumentOrFail(id, req.application!.id, collection);
+    const json = data as Prisma.InputJsonValue;
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.document.update({
         where: { id: doc.id },
-        data: { data, version: { increment: 1 } },
+        data: { data: json, version: { increment: 1 } },
       });
       await tx.documentVersion.create({
-        data: { documentId: u.id, version: u.version, data },
+        data: { documentId: u.id, version: u.version, data: json },
       });
       return u;
     });

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { config } from './config.js';
-import { logger } from './logger.js';
+import { logger, fastifyLoggerConfig } from './logger.js';
 import { prisma } from './db.js';
 import { errorHandler } from './errors.js';
 
@@ -31,7 +31,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function buildServer() {
   const app = Fastify({
-    loggerInstance: logger,
+    logger: fastifyLoggerConfig,
     disableRequestLogging: false,
     bodyLimit: Math.max(1024 * 1024, Math.floor(config.MAX_FILE_SIZE / 10)),
     trustProxy: true,

@@ -1,13 +1,15 @@
 /**
- * logger.ts — Logger Pino compartilhado.
+ * logger.ts — Config de logging compartilhada.
  *
- * Em dev usamos pino-pretty para legibilidade; em prod sai JSON puro,
- * que orquestradores conseguem agregar.
+ * `fastifyLoggerConfig` é passada para `Fastify({ logger })` — deixar o
+ * Fastify construir sua própria pino interna evita conflitos de tipo nos
+ * generics. `logger` é a instância para uso fora do request lifecycle
+ * (bootstrap, shutdown, errors.ts).
  */
-import { pino } from 'pino';
+import { pino, type LoggerOptions } from 'pino';
 import { config } from './config.js';
 
-export const logger = pino({
+export const fastifyLoggerConfig: LoggerOptions = {
   level: config.LOG_LEVEL,
   ...(config.isDev && {
     transport: {
@@ -15,4 +17,6 @@ export const logger = pino({
       options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l', ignore: 'pid,hostname' },
     },
   }),
-});
+};
+
+export const logger = pino(fastifyLoggerConfig);

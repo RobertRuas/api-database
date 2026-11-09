@@ -47,5 +47,6 @@ EXPOSE 3000
 # Tini garante que SIGTERM chega ao processo Node.
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Deploy aplica migrations pendentes antes de subir a API.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+# Sincroniza o schema no banco (primeiro deploy). Para ambientes maduros,
+# substitua por `prisma migrate deploy` com migrations versionadas.
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && node dist/server.js"]

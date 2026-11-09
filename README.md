@@ -112,7 +112,7 @@ curl -X POST https://database.windlog.org/v1/configs \
 | Método  | Rota                       | Escopo  | Descrição                            |
 |---------|----------------------------|---------|--------------------------------------|
 | `POST`  | `/v1/files/:collection`    | `files` | Upload multipart. Campo `file`.      |
-| `GET`   | `/v1/files/:collection`    | `files` | Lista arquivos da coleção.           |
+| `GET`   | `/v1/files?collection=X`   | `files` | Lista arquivos da coleção.           |
 | `GET`   | `/v1/files/:id`            | `files` | Download do arquivo (stream).        |
 | `DELETE`| `/v1/files/:id`            | `files` | Apaga o arquivo (disco + metadata).  |
 

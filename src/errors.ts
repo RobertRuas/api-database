@@ -4,7 +4,7 @@
  * Toda exceção que chegar ao Fastify passa por `errorHandler`,
  * que normaliza a resposta para o shape `{ ok:false, error:{code,message} }`.
  */
-import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { logger } from './logger.js';
 
@@ -37,6 +37,7 @@ export const Errors = {
 
 /** Handler global registrado no Fastify. */
 export function errorHandler(
+  this: FastifyInstance,
   err: FastifyError | AppError | ZodError | Error,
   req: FastifyRequest,
   reply: FastifyReply,

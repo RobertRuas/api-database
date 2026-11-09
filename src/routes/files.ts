@@ -56,11 +56,11 @@ const routes: FastifyPluginAsync = async (app) => {
     return { ok: true, data: serializeFile(record) };
   });
 
-  // ---- List ----
-  app.get('/:collection', { preHandler: apiKeyAuth('files') }, async (req) => {
-    const { collection } = z.object({ collection: CollectionNameSchema }).parse(req.params);
-    const { limit, offset } = z
+  // ---- List ---- (query `?collection=X` evita colisão com GET /:id)
+  app.get('/', { preHandler: apiKeyAuth('files') }, async (req) => {
+    const { collection, limit, offset } = z
       .object({
+        collection: CollectionNameSchema,
         limit: z.coerce.number().int().min(1).max(200).default(50),
         offset: z.coerce.number().int().min(0).default(0),
       })
