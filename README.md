@@ -8,22 +8,22 @@
 
 ---
 
-## ✨ Visão geral
+## Visão geral
 
 `API DataBase` resolve um problema recorrente: você tem várias aplicações pequenas (configs, scripts, apps mobile, serviços internos) que precisam de um lugar simples para persistir dados estruturados e arquivos, **sem subir um banco por projeto**.
 
 A proposta é ser um *"Firestore minimalista self-hosted"*:
 
-- 🗃️ **Coleções livres** — nenhum schema obrigatório, insira JSON arbitrário.
-- 🔐 **Isolamento por aplicação** — cada API Key enxerga apenas seus dados.
-- 📂 **Upload de arquivos** — organizados em disco, metadados no banco.
-- 🕓 **Histórico de versões** — toda alteração de documento vira uma versão imutável.
-- 🧭 **Painel administrativo** integrado — gerencie apps e chaves sem sair do navegador.
-- 🪶 **Enxuto** — Fastify, Prisma, PostgreSQL. Nada mais.
+- **Coleções livres** — nenhum schema obrigatório, insira JSON arbitrário.
+- **Isolamento por aplicação** — cada API Key enxerga apenas seus dados.
+- **Upload de arquivos** — organizados em disco, metadados no banco.
+- **Histórico de versões** — toda alteração de documento vira uma versão imutável.
+- **Painel administrativo** integrado — gerencie apps e chaves sem sair do navegador.
+- **Enxuto** — Fastify, Prisma, PostgreSQL. Nada mais.
 
 ---
 
-## 🚀 Começando
+## Começando
 
 ### Pré-requisitos
 
@@ -53,7 +53,7 @@ pnpm start
 
 ---
 
-## 🔑 Autenticação
+## Autenticação
 
 Toda requisição à API de dados precisa de uma **API Key** no header:
 
@@ -69,7 +69,7 @@ Chaves são geradas pelo painel em `/admin`. Cada chave:
 
 ---
 
-## 📚 Referência da API
+## Referência da API
 
 Todas as respostas seguem o shape:
 
@@ -126,7 +126,7 @@ curl -X POST https://database.windlog.org/v1/files/backups \
 
 ---
 
-## 🧭 Painel administrativo
+## Painel administrativo
 
 Acesse `/admin`. Credenciais vêm das envs `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
@@ -139,7 +139,7 @@ Funções:
 
 ---
 
-## 🛡️ Segurança
+## Segurança
 
 - Senhas de admin verificadas com **bcrypt** em memória.
 - API keys armazenadas como **hash bcrypt** — o valor em claro só aparece na criação.
@@ -150,13 +150,13 @@ Funções:
 
 ---
 
-## 📁 Estrutura
+## Estrutura
 
 Veja [MAP.md](./MAP.md) — mapa completo de diretórios e arquivos, mantido sempre atualizado.
 
 ---
 
-## 🤝 Contribuindo
+## Contribuindo
 
 O projeto segue regras estritas descritas em [CLAUDE.md](./CLAUDE.md), inclusive para contribuidores humanos:
 
@@ -166,6 +166,6 @@ O projeto segue regras estritas descritas em [CLAUDE.md](./CLAUDE.md), inclusive
 
 ---
 
-## 📄 Licença
+## Licença
 
 MIT. Use à vontade.
