@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Painel — api-database</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🗃️%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='M3 9h18M9 21V9'/%3E%3C/svg%3E" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script>
     tailwind.config = {
@@ -23,9 +23,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     html, body { background: #ffffff; color: #0a0a0a; }
+    /* Escala geral reduzida: base 13px em vez do 16px padrão. */
+    html { font-size: 13px; }
     body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     [x-cloak] { display: none !important; }
+
+    /* Nada de quebra de linha em tabelas, botões ou links de ação. */
+    table th, table td { white-space: nowrap; }
+    button, .btn, a[class*="border"], a[download] { white-space: nowrap; }
+
+    /* Tabela com rolagem horizontal quando o conteúdo exceder — melhor que empilhar. */
+    .table-wrap { overflow-x: auto; }
+
     /* Scrollbar discreta */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -33,6 +43,15 @@
     ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
     details > summary { list-style: none; cursor: pointer; }
     details > summary::-webkit-details-marker { display: none; }
+
+    /* Trunca textos longos em células por padrão, revelando no hover via tooltip nativo. */
+    td.ellipsis { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Ícones Lucide inline — herdam a cor do texto (currentColor). */
+    .icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .icon-sm { width: 12px; height: 12px; }
+    .icon-md { width: 14px; height: 14px; }
+    .icon-lg { width: 18px; height: 18px; }
   </style>
 </head>
 <body class="min-h-screen bg-white text-neutral-900">
@@ -44,6 +63,41 @@
 //  Painel admin — SPA single-file, Tailwind CDN, tema branco.
 //  Sem framework: fetch + render manual.
 // ============================================================
+
+// ---------- Icons (Lucide, inline SVG) ----------
+const ICONS = {
+  database:   '<path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  box:        '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  file:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  files:      '<path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z"/><path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"/>',
+  key:        '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+  app:        '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  activity:   '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.5.5 0 0 1-.96 0L9.68 3.18a.5.5 0 0 0-.96 0l-2.35 8.36A2 2 0 0 1 4.44 13H2"/>',
+  check:      '<polyline points="20 6 9 17 4 12"/>',
+  x:          '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  plus:       '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  trash:      '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  edit:       '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  download:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/>',
+  copy:       '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  chevron:    '<polyline points="9 18 15 12 9 6"/>',
+  book:       '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+  external:   '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  logout:     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><path d="M21 12H9"/>',
+  clock:      '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  alertCircle:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  shield:     '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+  layers:     '<path d="m12.83 2.18-9.65 4.52a1 1 0 0 0 0 1.81l9.65 4.51a2 2 0 0 0 1.69 0l9.65-4.51a1 1 0 0 0 0-1.81l-9.65-4.52a2 2 0 0 0-1.69 0Z"/><path d="m22 17-9.17 4.33a2 2 0 0 1-1.69 0L2 17"/><path d="m22 12-9.17 4.33a2 2 0 0 1-1.69 0L2 12"/>',
+  trending:   '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  save:       '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  history:    '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  refresh:    '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/>',
+};
+function icon(name, extraClass = 'icon-md') {
+  const path = ICONS[name] || '';
+  return `<svg class="icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+}
 
 // ---------- API client ----------
 const api = {
@@ -69,6 +123,12 @@ const api = {
   listKeys:        (id)          => api.request(`/admin/api/apps/${id}/keys`),
   createKey:       (id, b)       => api.request(`/admin/api/apps/${id}/keys`, { method: 'POST', body: b }),
   revokeKey:       (appId, kId)  => api.request(`/admin/api/apps/${appId}/keys/${kId}`, { method: 'DELETE' }),
+  listKeysStats:   (id)          => api.request(`/admin/api/apps/${id}/keys-stats`),
+  keyStats:        (id, keyId)   => api.request(`/admin/api/apps/${id}/keys/${keyId}/stats`),
+  listRequests:    (id, q = {})  => {
+    const params = new URLSearchParams(q).toString();
+    return api.request(`/admin/api/apps/${id}/requests${params ? '?' + params : ''}`);
+  },
   listCollections: (id)          => api.request(`/admin/api/apps/${id}/collections`),
   listDocuments:   (id, name)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents`),
   createDocument:  (id, name, d) => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents`, { method: 'POST', body: d }),
@@ -121,11 +181,21 @@ async function copyText(txt) {
 }
 
 // ---------- Modal ----------
-function openModal(contentHtml, afterMount) {
+// Tamanhos disponíveis — modais novos passam { size } para escolher.
+// Padrão: 'md' (confirmações). App/data usa 'xl' (muito mais largo).
+const MODAL_SIZES = {
+  sm: 'max-w-md',
+  md: 'max-w-2xl',
+  lg: 'max-w-4xl',
+  xl: 'max-w-6xl',
+  full: 'max-w-[96vw]',
+};
+function openModal(contentHtml, afterMount, { size = 'md' } = {}) {
   closeModal();
+  const sizeCls = MODAL_SIZES[size] || MODAL_SIZES.md;
   const bg = document.createElement('div');
-  bg.className = 'fixed inset-0 z-40 bg-black/40 flex items-start justify-center px-4 pt-16 pb-8 overflow-y-auto';
-  bg.innerHTML = `<div class="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">${contentHtml}</div>`;
+  bg.className = 'fixed inset-0 z-40 bg-black/40 flex items-start justify-center px-4 pt-8 pb-8 overflow-y-auto';
+  bg.innerHTML = `<div class="bg-white rounded-lg shadow-xl border border-neutral-200 w-full ${sizeCls} max-h-[92vh] overflow-hidden flex flex-col">${contentHtml}</div>`;
   document.body.appendChild(bg);
   bg.addEventListener('click', e => { if (e.target === bg) closeModal(); });
   $$('[data-close]', bg).forEach(el => el.onclick = closeModal);
@@ -143,10 +213,10 @@ function renderLogin() {
   $('#root').innerHTML = `
     <div class="min-h-screen grid place-items-center px-4">
       <div class="w-full max-w-sm">
-        <div class="text-center mb-8">
-          <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-neutral-900 text-white text-xl mb-3">🗃️</div>
-          <h1 class="text-2xl font-semibold tracking-tight">api-database</h1>
-          <p class="text-sm text-neutral-500 mt-1">Painel administrativo</p>
+        <div class="text-center mb-6">
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-900 text-white mb-2">${icon('database', 'icon-lg')}</div>
+          <h1 class="text-lg font-semibold tracking-tight">api-database</h1>
+          <p class="text-xs text-neutral-500 mt-0.5">Painel administrativo</p>
         </div>
         <form id="login-form" class="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm space-y-4">
           <div>
@@ -181,35 +251,35 @@ function renderLogin() {
 async function renderDashboard() {
   $('#root').innerHTML = `
     <nav class="border-b border-neutral-200 bg-white sticky top-0 z-30">
-      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <a href="/" class="w-8 h-8 rounded-md bg-neutral-900 text-white grid place-items-center text-sm">🗃️</a>
+      <div class="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <a href="/" class="w-7 h-7 rounded-md bg-neutral-900 text-white grid place-items-center">${icon('database', 'icon-md')}</a>
           <div>
-            <div class="text-sm font-semibold leading-none">api-database</div>
-            <div class="text-xs text-neutral-500 mt-0.5">painel administrativo</div>
+            <div class="text-xs font-semibold leading-none">api-database</div>
+            <div class="text-[10px] text-neutral-500 mt-0.5">painel administrativo</div>
           </div>
         </div>
-        <div class="flex items-center gap-3 text-sm">
-          <a href="/" class="text-neutral-600 hover:text-neutral-900">↗ pública</a>
-          <a href="/docs" class="text-neutral-600 hover:text-neutral-900">📖 manual</a>
-          <span class="h-4 w-px bg-neutral-200"></span>
+        <div class="flex items-center gap-2 text-xs">
+          <a href="/" class="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1">${icon('external','icon-sm')} pública</a>
+          <a href="/docs" class="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1">${icon('book','icon-sm')} Manual</a>
+          <span class="h-3 w-px bg-neutral-200"></span>
           <span class="text-neutral-500" id="who">—</span>
-          <button id="logout" class="text-neutral-700 hover:text-neutral-900 border border-neutral-200 rounded-md px-3 py-1 text-xs hover:border-neutral-400 transition">Sair</button>
+          <button id="logout" class="text-neutral-700 hover:text-neutral-900 border border-neutral-200 rounded-md px-2 py-0.5 text-[11px] hover:border-neutral-400 transition inline-flex items-center gap-1">${icon('logout','icon-sm')} Sair</button>
         </div>
       </div>
     </nav>
 
-    <main class="max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <main class="max-w-6xl mx-auto px-4 py-5 space-y-5">
       <section id="stats"></section>
 
       <section>
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-2">
           <div>
-            <h2 class="text-lg font-semibold">Aplicações</h2>
-            <p class="text-xs text-neutral-500 mt-0.5">Cada aplicação tem suas próprias coleções, arquivos e chaves.</p>
+            <h2 class="text-sm font-semibold">Aplicações</h2>
+            <p class="text-[11px] text-neutral-500">Cada aplicação tem suas próprias coleções, arquivos e chaves.</p>
           </div>
-          <button id="new-app" class="bg-neutral-900 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-neutral-800 transition inline-flex items-center gap-2">
-            <span class="text-base leading-none">+</span> Nova aplicação
+          <button id="new-app" class="bg-neutral-900 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-neutral-800 transition inline-flex items-center gap-1">
+            ${icon('plus','icon-sm')} Nova aplicação
           </button>
         </div>
         <div id="apps-wrap"></div>
@@ -239,20 +309,20 @@ async function renderStats() {
   try {
     const s = await api.stats();
     $('#stats').innerHTML = `
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        ${statCard('Aplicações',   s.applications,                '🎯')}
-        ${statCard('Chaves ativas', s.activeKeys,                  '🔑')}
-        ${statCard('Documentos',    s.documents.toLocaleString(),  '📄')}
-        ${statCard('Arquivos',      `${s.files} <span class="text-sm font-normal text-neutral-500">· ${fmtBytes(s.storageBytes)}</span>`, '📦')}
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+        ${statCard('Aplicações',   s.applications,                 'app')}
+        ${statCard('Chaves ativas', s.activeKeys,                  'key')}
+        ${statCard('Documentos',    s.documents.toLocaleString(),  'file')}
+        ${statCard('Arquivos',      `${s.files} <span class="text-[11px] font-normal text-neutral-500">· ${fmtBytes(s.storageBytes)}</span>`, 'files')}
       </div>`;
   } catch (err) { toast(err.message, 'err'); }
 }
-function statCard(k, v, icon) {
-  return `<div class="bg-white border border-neutral-200 rounded-lg p-4">
-    <div class="flex items-center justify-between text-xs text-neutral-500 uppercase tracking-wide">
-      <span>${k}</span><span>${icon}</span>
+function statCard(k, v, iconName) {
+  return `<div class="bg-white border border-neutral-200 rounded-lg px-3 py-2">
+    <div class="flex items-center justify-between text-[10px] text-neutral-500 uppercase tracking-wide">
+      <span>${k}</span><span class="text-neutral-400">${icon(iconName, 'icon-sm')}</span>
     </div>
-    <div class="text-2xl font-semibold mt-1">${v}</div>
+    <div class="text-lg font-semibold mt-0.5">${v}</div>
   </div>`;
 }
 
@@ -262,45 +332,45 @@ async function renderApps() {
     const apps = await api.listApps();
     if (!apps.length) {
       box.innerHTML = `
-        <div class="bg-white border border-dashed border-neutral-300 rounded-lg p-10 text-center">
-          <div class="text-3xl mb-2">📭</div>
-          <p class="text-sm text-neutral-600">Nenhuma aplicação ainda.</p>
-          <p class="text-xs text-neutral-500 mt-1">Clique em <strong>Nova aplicação</strong> acima para começar.</p>
+        <div class="bg-white border border-dashed border-neutral-300 rounded-lg p-8 text-center">
+          <div class="text-neutral-400 mb-2 inline-block">${icon('app','icon-lg')}</div>
+          <p class="text-xs text-neutral-600">Nenhuma aplicação ainda.</p>
+          <p class="text-[11px] text-neutral-500 mt-0.5">Clique em <strong>Nova aplicação</strong> acima para começar.</p>
         </div>`;
       return;
     }
     box.innerHTML = `
-      <div class="bg-white border border-neutral-200 rounded-lg overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+      <div class="bg-white border border-neutral-200 rounded-lg overflow-hidden table-wrap">
+        <table class="w-full text-xs">
+          <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase tracking-wide">
             <tr>
-              <th class="text-left font-medium px-4 py-2.5">Nome</th>
-              <th class="text-left font-medium px-4 py-2.5">Status</th>
-              <th class="text-right font-medium px-4 py-2.5">Chaves</th>
-              <th class="text-right font-medium px-4 py-2.5">Coleções</th>
-              <th class="text-right font-medium px-4 py-2.5">Arquivos</th>
-              <th class="text-left font-medium px-4 py-2.5">Criada</th>
-              <th class="px-4 py-2.5"></th>
+              <th class="text-left font-medium px-3 py-2">Nome</th>
+              <th class="text-left font-medium px-3 py-2">Status</th>
+              <th class="text-right font-medium px-3 py-2">Chaves</th>
+              <th class="text-right font-medium px-3 py-2">Coleções</th>
+              <th class="text-right font-medium px-3 py-2">Arquivos</th>
+              <th class="text-left font-medium px-3 py-2">Criada</th>
+              <th class="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-neutral-100">
             ${apps.map(a => `
               <tr class="hover:bg-neutral-50 cursor-pointer" data-open="${h(a.id)}">
-                <td class="px-4 py-3">
+                <td class="px-3 py-2">
                   <div class="font-medium">${h(a.name)}</div>
-                  ${a.description ? `<div class="text-xs text-neutral-500 mt-0.5">${h(a.description)}</div>` : ''}
+                  ${a.description ? `<div class="text-[11px] text-neutral-500 mt-0.5 truncate max-w-[280px]" title="${h(a.description)}">${h(a.description)}</div>` : ''}
                 </td>
-                <td class="px-4 py-3">
+                <td class="px-3 py-2">
                   ${a.active
-                    ? '<span class="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">● ativa</span>'
-                    : '<span class="inline-flex items-center gap-1 text-xs text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5">○ desativada</span>'}
+                    ? '<span class="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>ativa</span>'
+                    : '<span class="inline-flex items-center gap-1 text-[10px] text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-neutral-400"></span>desativada</span>'}
                 </td>
-                <td class="px-4 py-3 text-right mono">${a.counts.apiKeys}</td>
-                <td class="px-4 py-3 text-right mono">${a.counts.collections}</td>
-                <td class="px-4 py-3 text-right mono">${a.counts.files}</td>
-                <td class="px-4 py-3 text-neutral-500 text-xs">${fmtDate(a.createdAt)}</td>
-                <td class="px-4 py-3 text-right">
-                  <span class="text-neutral-400">→</span>
+                <td class="px-3 py-2 text-right mono">${a.counts.apiKeys}</td>
+                <td class="px-3 py-2 text-right mono">${a.counts.collections}</td>
+                <td class="px-3 py-2 text-right mono">${a.counts.files}</td>
+                <td class="px-3 py-2 text-neutral-500 text-[11px]">${fmtDate(a.createdAt)}</td>
+                <td class="px-3 py-2 text-right">
+                  <span class="text-neutral-400">${icon('arrowRight','icon-sm')}</span>
                 </td>
               </tr>`).join('')}
           </tbody>
@@ -351,45 +421,60 @@ async function openAppModal(appId) {
   if (!app) return toast('Aplicação não encontrada', 'err');
 
   openModal(`
-    <div class="p-6 border-b border-neutral-200">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h3 class="text-xl font-semibold">${h(app.name)}</h3>
-          <p class="text-sm text-neutral-500 mt-0.5">${h(app.description || 'Sem descrição')}</p>
-          <div class="mt-2 flex items-center gap-2 text-xs text-neutral-500 mono">
-            <span>id:</span> <span>${h(app.id)}</span>
-            <button data-copy="${h(app.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar">⎘</button>
+    <div class="p-5 border-b border-neutral-200">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 class="text-lg font-semibold truncate">${h(app.name)}</h3>
+          <p class="text-xs text-neutral-500 mt-0.5 truncate">${h(app.description || 'Sem descrição')}</p>
+          <div class="mt-1 flex items-center gap-1 text-[11px] text-neutral-500 mono">
+            <span>id:</span><span>${h(app.id)}</span>
+            <button data-copy="${h(app.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar">${icon('copy','icon-sm')}</button>
           </div>
         </div>
-        <div class="flex gap-2">
-          <button id="toggle-active" class="text-xs px-3 py-1.5 border border-neutral-300 rounded-md hover:bg-neutral-50">
+        <div class="flex gap-1 shrink-0">
+          <button id="toggle-active" class="text-xs px-2 py-1 border border-neutral-300 rounded-md hover:bg-neutral-50">
             ${app.active ? 'Desativar' : 'Ativar'}
           </button>
-          <button id="delete-app" class="text-xs px-3 py-1.5 border border-red-300 text-red-700 rounded-md hover:bg-red-50">
-            Excluir
+          <button id="delete-app" class="text-xs px-2 py-1 border border-red-300 text-red-700 rounded-md hover:bg-red-50 inline-flex items-center gap-1">
+            ${icon('trash','icon-sm')} Excluir
           </button>
         </div>
       </div>
+      <div id="app-metrics" class="mt-3 grid grid-cols-5 gap-2"></div>
     </div>
-    <div class="border-b border-neutral-200 px-6">
-      <nav class="flex gap-6 text-sm -mb-px">
-        <button data-tab="keys" class="tab-btn py-3 border-b-2 border-neutral-900 font-medium">Chaves de API</button>
-        <button data-tab="collections" class="tab-btn py-3 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900">Coleções</button>
-        <button data-tab="files" class="tab-btn py-3 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900">Arquivos</button>
+    <div class="border-b border-neutral-200 px-5">
+      <nav class="flex gap-5 text-xs -mb-px">
+        <button data-tab="overview" class="tab-btn py-2.5 border-b-2 border-neutral-900 font-medium inline-flex items-center gap-1">${icon('trending','icon-sm')} Visão geral</button>
+        <button data-tab="keys" class="tab-btn py-2.5 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1">${icon('key','icon-sm')} Chaves</button>
+        <button data-tab="collections" class="tab-btn py-2.5 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1">${icon('layers','icon-sm')} Coleções</button>
+        <button data-tab="files" class="tab-btn py-2.5 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1">${icon('files','icon-sm')} Arquivos</button>
+        <button data-tab="activity" class="tab-btn py-2.5 border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1">${icon('activity','icon-sm')} Atividade</button>
       </nav>
     </div>
-    <div id="tab-content" class="p-6 overflow-y-auto"></div>
-    <div class="p-4 border-t border-neutral-200 flex justify-end">
-      <button data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Fechar</button>
+    <div id="tab-content" class="p-5 overflow-y-auto grow"></div>
+    <div class="p-3 border-t border-neutral-200 flex justify-end">
+      <button data-close class="px-3 py-1 text-xs border border-neutral-300 rounded-md hover:bg-neutral-50">Fechar</button>
     </div>
   `, (modal) => {
     $$('[data-copy]', modal).forEach(b => b.onclick = () => copyText(b.dataset.copy));
+
+    // Métricas no header da modal
+    api.appStats(appId).then(s => {
+      const errRate = s.requests.total ? ((s.requests.errors / s.requests.total) * 100).toFixed(1) : '0';
+      $('#app-metrics', modal).innerHTML = `
+        ${miniMetric('Requisições', s.requests.total.toLocaleString())}
+        ${miniMetric('Últimas 24h', s.requests.last24h.toLocaleString())}
+        ${miniMetric('Erros', `${s.requests.errors} <span class="text-neutral-400">(${errRate}%)</span>`)}
+        ${miniMetric('Latência média', `${s.requests.avgLatencyMs} ms`)}
+        ${miniMetric('Armazenamento', fmtBytes(s.storageBytes))}
+      `;
+    }).catch(() => {});
 
     const tabs = $$('.tab-btn', modal);
     const switchTab = (name) => {
       tabs.forEach(t => {
         const active = t.dataset.tab === name;
-        t.className = `tab-btn py-3 border-b-2 ${active ? 'border-neutral-900 font-medium' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`;
+        t.className = `tab-btn py-2.5 border-b-2 inline-flex items-center gap-1 ${active ? 'border-neutral-900 font-medium' : 'border-transparent text-neutral-500 hover:text-neutral-900'}`;
       });
       renderTab(name);
     };
@@ -397,12 +482,14 @@ async function openAppModal(appId) {
 
     async function renderTab(name) {
       const content = $('#tab-content', modal);
-      content.innerHTML = '<div class="text-sm text-neutral-500">Carregando…</div>';
+      content.innerHTML = '<div class="text-xs text-neutral-500">Carregando…</div>';
       try {
+        if (name === 'overview')    return renderOverviewTab(content, appId);
         if (name === 'keys')        return renderKeysTab(content, appId);
         if (name === 'collections') return renderCollectionsTab(content, appId);
         if (name === 'files')       return renderFilesTab(content, appId);
-      } catch (err) { content.innerHTML = `<div class="text-sm text-red-600">${h(err.message)}</div>`; }
+        if (name === 'activity')    return renderActivityTab(content, appId);
+      } catch (err) { content.innerHTML = `<div class="text-xs text-red-600">${h(err.message)}</div>`; }
     }
 
     $('#toggle-active', modal).onclick = async () => {
@@ -421,47 +508,201 @@ async function openAppModal(appId) {
       } catch (err) { toast(err.message, 'err'); }
     };
 
-    switchTab('keys');
-  });
+    switchTab('overview');
+  }, { size: 'xl' });
+}
+
+function miniMetric(label, value) {
+  return `<div class="bg-neutral-50 border border-neutral-200 rounded px-2 py-1">
+    <div class="text-[9px] uppercase text-neutral-500 tracking-wide">${label}</div>
+    <div class="text-xs font-semibold mt-0.5">${value}</div>
+  </div>`;
+}
+
+async function renderOverviewTab(root, appId) {
+  const s = await api.appStats(appId);
+  const byStatus = s.requests.byStatus.sort((a,b) => a.status - b.status);
+  const topPaths = s.requests.topPaths;
+  root.innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+      ${miniBox('Coleções',    s.collections,  'layers')}
+      ${miniBox('Documentos',  s.documents.toLocaleString(), 'file')}
+      ${miniBox('Versões',     s.versions.toLocaleString(), 'history')}
+      ${miniBox('Arquivos',    `${s.files} · ${fmtBytes(s.storageBytes)}`, 'files')}
+      ${miniBox('Requisições', s.requests.total.toLocaleString(), 'activity')}
+      ${miniBox('Últimas 24h', s.requests.last24h.toLocaleString(), 'clock')}
+      ${miniBox('Últimos 7d',  s.requests.last7d.toLocaleString(), 'trending')}
+      ${miniBox('Erros',       `${s.requests.errors}`, 'alertCircle')}
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+        <div class="px-3 py-2 bg-neutral-50 text-[10px] uppercase tracking-wide text-neutral-500">Por status (7 dias)</div>
+        ${byStatus.length === 0
+          ? '<div class="p-3 text-[11px] text-neutral-500">Sem requisições recentes.</div>'
+          : `<table class="w-full text-xs"><tbody class="divide-y divide-neutral-100">
+              ${byStatus.map(s => `<tr>
+                <td class="px-3 py-1.5">${statusBadge(s.status)}</td>
+                <td class="px-3 py-1.5 text-right mono">${s.count.toLocaleString()}</td>
+              </tr>`).join('')}
+            </tbody></table>`}
+      </div>
+      <div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+        <div class="px-3 py-2 bg-neutral-50 text-[10px] uppercase tracking-wide text-neutral-500">Rotas mais chamadas (7 dias)</div>
+        ${topPaths.length === 0
+          ? '<div class="p-3 text-[11px] text-neutral-500">Sem dados.</div>'
+          : `<table class="w-full text-xs"><tbody class="divide-y divide-neutral-100">
+              ${topPaths.map(p => `<tr>
+                <td class="px-3 py-1.5">${methodBadge(p.method)} <span class="mono text-[11px]">${h(p.path)}</span></td>
+                <td class="px-3 py-1.5 text-right mono">${p.count.toLocaleString()}</td>
+              </tr>`).join('')}
+            </tbody></table>`}
+      </div>
+    </div>`;
+}
+
+function miniBox(label, value, iconName) {
+  return `<div class="border border-neutral-200 rounded-md px-3 py-2">
+    <div class="flex items-center justify-between text-[10px] uppercase text-neutral-500 tracking-wide">
+      <span>${label}</span><span class="text-neutral-400">${icon(iconName, 'icon-sm')}</span>
+    </div>
+    <div class="text-sm font-semibold mt-0.5">${value}</div>
+  </div>`;
+}
+
+function statusBadge(code) {
+  const cls = code < 300 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            : code < 400 ? 'bg-blue-50 text-blue-700 border-blue-200'
+            : code < 500 ? 'bg-amber-50 text-amber-800 border-amber-200'
+            : 'bg-red-50 text-red-700 border-red-200';
+  return `<span class="inline-block mono text-[10px] px-1.5 py-0.5 rounded border ${cls}">${code}</span>`;
+}
+function methodBadge(m) {
+  const map = { GET:'bg-blue-50 text-blue-700', POST:'bg-emerald-50 text-emerald-700', PATCH:'bg-amber-50 text-amber-800', PUT:'bg-violet-50 text-violet-700', DELETE:'bg-red-50 text-red-700' };
+  const cls = map[m] || 'bg-neutral-100 text-neutral-700';
+  return `<span class="inline-block mono text-[9px] font-semibold px-1.5 py-0.5 rounded ${cls}">${h(m)}</span>`;
+}
+
+async function renderActivityTab(root, appId, filter = { status: 'all', apiKeyId: '' }) {
+  root.innerHTML = `
+    <div class="flex items-center justify-between mb-2 gap-2">
+      <div class="flex items-center gap-2 text-[11px]">
+        <label>Status:</label>
+        <select id="f-status" class="border border-neutral-300 rounded px-1 py-0.5 text-[11px]">
+          <option value="all">todos</option>
+          <option value="2xx">2xx</option>
+          <option value="4xx">4xx</option>
+          <option value="5xx">5xx</option>
+        </select>
+        <label>Chave:</label>
+        <select id="f-key" class="border border-neutral-300 rounded px-1 py-0.5 text-[11px]"><option value="">todas</option></select>
+        <button id="refresh" class="ml-1 text-[11px] border border-neutral-300 rounded px-2 py-0.5 hover:bg-neutral-50 inline-flex items-center gap-1">${icon('refresh','icon-sm')} atualizar</button>
+      </div>
+    </div>
+    <div id="activity-table"></div>`;
+  $('#f-status', root).value = filter.status;
+
+  // Popula select de chaves
+  try {
+    const keys = await api.listKeysStats(appId);
+    const sel = $('#f-key', root);
+    keys.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.id; opt.textContent = `${k.name} (${k.prefix}…)`;
+      sel.appendChild(opt);
+    });
+    sel.value = filter.apiKeyId;
+  } catch {}
+
+  const load = async () => {
+    const box = $('#activity-table', root);
+    box.innerHTML = '<div class="text-[11px] text-neutral-500 p-2">Carregando…</div>';
+    try {
+      const q = {};
+      if (filter.status !== 'all') q.status = filter.status;
+      if (filter.apiKeyId) q.apiKeyId = filter.apiKeyId;
+      const { items, total } = await api.listRequests(appId, q);
+      if (!items.length) {
+        box.innerHTML = '<div class="text-[11px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Nenhuma requisição registrada ainda.</div>';
+        return;
+      }
+      box.innerHTML = `
+        <div class="text-[10px] text-neutral-500 mb-1">${items.length} de ${total.toLocaleString()} registros</div>
+        <div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+          <table class="w-full text-xs">
+            <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase tracking-wide">
+              <tr>
+                <th class="text-left font-medium px-2 py-1.5">Quando</th>
+                <th class="text-left font-medium px-2 py-1.5">Método</th>
+                <th class="text-left font-medium px-2 py-1.5">Rota</th>
+                <th class="text-left font-medium px-2 py-1.5">Status</th>
+                <th class="text-right font-medium px-2 py-1.5">Latência</th>
+                <th class="text-left font-medium px-2 py-1.5">IP</th>
+                <th class="text-left font-medium px-2 py-1.5">User-Agent</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-100">
+              ${items.map(r => `
+                <tr>
+                  <td class="px-2 py-1.5 text-[11px] text-neutral-500">${fmtDate(r.createdAt)}</td>
+                  <td class="px-2 py-1.5">${methodBadge(r.method)}</td>
+                  <td class="px-2 py-1.5 mono text-[11px]">${h(r.path)}</td>
+                  <td class="px-2 py-1.5">${statusBadge(r.status)}</td>
+                  <td class="px-2 py-1.5 text-right mono text-[11px]">${r.durationMs} ms</td>
+                  <td class="px-2 py-1.5 mono text-[11px] text-neutral-600">${h(r.ip || '—')}</td>
+                  <td class="px-2 py-1.5 text-[11px] text-neutral-500 truncate max-w-[200px]" title="${h(r.userAgent || '')}">${h(r.userAgent || '—')}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) { box.innerHTML = `<div class="text-xs text-red-600 p-2">${h(err.message)}</div>`; }
+  };
+
+  $('#f-status', root).onchange = (e) => { filter.status = e.target.value; load(); };
+  $('#f-key', root).onchange    = (e) => { filter.apiKeyId = e.target.value; load(); };
+  $('#refresh', root).onclick   = load;
+  load();
 }
 
 async function renderKeysTab(root, appId) {
-  const keys = await api.listKeys(appId);
+  const keys = await api.listKeysStats(appId);
   root.innerHTML = `
-    <div class="flex items-center justify-between mb-4">
-      <p class="text-sm text-neutral-600">Chaves identificam uma aplicação consumidora. O valor só aparece uma vez.</p>
-      <button id="new-key" class="text-sm bg-neutral-900 text-white px-3 py-1.5 rounded-md hover:bg-neutral-800">+ Nova chave</button>
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-[11px] text-neutral-500">Chaves identificam uma aplicação consumidora. O valor em claro só aparece uma vez.</p>
+      <button id="new-key" class="text-xs bg-neutral-900 text-white px-2.5 py-1 rounded-md hover:bg-neutral-800 inline-flex items-center gap-1">${icon('plus','icon-sm')} Nova chave</button>
     </div>
     ${keys.length === 0
-      ? '<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Sem chaves criadas.</div>'
-      : `<div class="border border-neutral-200 rounded-md overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+      ? '<div class="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Sem chaves criadas.</div>'
+      : `<div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+          <table class="w-full text-xs">
+            <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase tracking-wide">
               <tr>
-                <th class="text-left font-medium px-3 py-2">Nome</th>
-                <th class="text-left font-medium px-3 py-2">Prefixo</th>
-                <th class="text-left font-medium px-3 py-2">Escopos</th>
-                <th class="text-left font-medium px-3 py-2">Último uso</th>
-                <th class="text-left font-medium px-3 py-2">Status</th>
-                <th class="px-3 py-2"></th>
+                <th class="text-left font-medium px-2 py-1.5">Nome</th>
+                <th class="text-left font-medium px-2 py-1.5">Prefixo</th>
+                <th class="text-left font-medium px-2 py-1.5">Escopos</th>
+                <th class="text-right font-medium px-2 py-1.5">Requisições</th>
+                <th class="text-left font-medium px-2 py-1.5">Último uso</th>
+                <th class="text-left font-medium px-2 py-1.5">Status</th>
+                <th class="px-2 py-1.5"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-neutral-100">
               ${keys.map(k => `
                 <tr>
-                  <td class="px-3 py-2.5 font-medium">${h(k.name)}</td>
-                  <td class="px-3 py-2.5 mono text-xs text-neutral-600">${h(k.prefix)}…</td>
-                  <td class="px-3 py-2.5">
-                    ${k.scopes.map(s => `<span class="inline-block text-[10px] uppercase tracking-wide bg-neutral-100 text-neutral-700 px-1.5 py-0.5 rounded">${h(s)}</span>`).join(' ')}
+                  <td class="px-2 py-1.5 font-medium">${h(k.name)}</td>
+                  <td class="px-2 py-1.5 mono text-[11px] text-neutral-600">${h(k.prefix)}…</td>
+                  <td class="px-2 py-1.5">
+                    ${k.scopes.map(s => `<span class="inline-block text-[9px] uppercase tracking-wide bg-neutral-100 text-neutral-700 px-1.5 py-0.5 rounded">${h(s)}</span>`).join(' ')}
                   </td>
-                  <td class="px-3 py-2.5 text-xs text-neutral-500">${fmtDate(k.lastUsedAt)}</td>
-                  <td class="px-3 py-2.5">
+                  <td class="px-2 py-1.5 text-right mono text-[11px]">${k.requests.toLocaleString()}</td>
+                  <td class="px-2 py-1.5 text-[11px] text-neutral-500">${fmtDate(k.lastUsedAt)}</td>
+                  <td class="px-2 py-1.5">
                     ${k.revokedAt
-                      ? '<span class="text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">revogada</span>'
-                      : '<span class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">ativa</span>'}
+                      ? '<span class="text-[10px] text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">revogada</span>'
+                      : '<span class="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">ativa</span>'}
                   </td>
-                  <td class="px-3 py-2.5 text-right">
-                    ${k.revokedAt ? '' : `<button data-revoke="${h(k.id)}" class="text-xs text-red-700 hover:underline">Revogar</button>`}
+                  <td class="px-2 py-1.5 text-right">
+                    <button data-stats="${h(k.id)}" class="text-[11px] text-neutral-700 hover:underline mr-2">métricas</button>
+                    ${k.revokedAt ? '' : `<button data-revoke="${h(k.id)}" class="text-[11px] text-red-700 hover:underline">Revogar</button>`}
                   </td>
                 </tr>
               `).join('')}
@@ -474,6 +715,38 @@ async function renderKeysTab(root, appId) {
     if (!confirm('Revogar esta chave? A ação é permanente.')) return;
     try { await api.revokeKey(appId, b.dataset.revoke); renderKeysTab(root, appId); renderStats(); toast('Chave revogada'); }
     catch (err) { toast(err.message, 'err'); }
+  });
+  $$('[data-stats]', root).forEach(b => b.onclick = async () => {
+    try {
+      const key = keys.find(k => k.id === b.dataset.stats);
+      const s = await api.keyStats(appId, b.dataset.stats);
+      openModal(`
+        <div class="p-4">
+          <h3 class="text-sm font-semibold mb-1">Métricas da chave</h3>
+          <p class="text-[11px] text-neutral-500 mono mb-3">${h(key.name)} · ${h(key.prefix)}…</p>
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            ${miniBox('Total',       s.total.toLocaleString(),    'activity')}
+            ${miniBox('Últimas 24h', s.last24h.toLocaleString(),  'clock')}
+            ${miniBox('Últimos 7d',  s.last7d.toLocaleString(),   'trending')}
+            ${miniBox('Erros',       s.errors.toLocaleString(),   'alertCircle')}
+            ${miniBox('Latência média', `${s.avgLatencyMs} ms`,   'clock')}
+          </div>
+          ${s.byStatus.length ? `
+            <div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+              <div class="px-3 py-1.5 bg-neutral-50 text-[10px] uppercase tracking-wide text-neutral-500">Por status</div>
+              <table class="w-full text-xs"><tbody class="divide-y divide-neutral-100">
+                ${s.byStatus.sort((a,b)=>a.status-b.status).map(x => `<tr>
+                  <td class="px-3 py-1.5">${statusBadge(x.status)}</td>
+                  <td class="px-3 py-1.5 text-right mono">${x.count.toLocaleString()}</td>
+                </tr>`).join('')}
+              </tbody></table>
+            </div>` : '<div class="text-[11px] text-neutral-500">Sem requisições registradas.</div>'}
+          <div class="flex justify-end mt-3">
+            <button data-close class="px-3 py-1 text-[11px] border border-neutral-300 rounded-md hover:bg-neutral-50">Fechar</button>
+          </div>
+        </div>
+      `);
+    } catch (err) { toast(err.message, 'err'); }
   });
 }
 
@@ -522,12 +795,12 @@ function openNewKeyModal(appId, onCreated) {
       try {
         const created = await api.createKey(appId, { name: fd.get('name'), scopes });
         openModal(`
-          <div class="p-6">
-            <div class="flex items-start gap-3 mb-4">
-              <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-lg">✓</div>
+          <div class="p-4">
+            <div class="flex items-start gap-2 mb-3">
+              <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center">${icon('check','icon-md')}</div>
               <div>
-                <h3 class="text-lg font-semibold">Chave criada</h3>
-                <p class="text-xs text-neutral-500">Este valor <strong>não será exibido novamente</strong>. Copie-o agora.</p>
+                <h3 class="text-sm font-semibold">Chave criada</h3>
+                <p class="text-[11px] text-neutral-500">Este valor <strong>não será exibido novamente</strong>. Copie-o agora.</p>
               </div>
             </div>
             <div class="bg-neutral-50 border border-neutral-200 rounded-md p-3 mono text-xs break-all" id="tok">${h(created.token)}</div>
@@ -558,17 +831,17 @@ async function renderCollectionsTab(root, appId) {
         ? '<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-6 text-center">Nenhuma coleção ainda.</div>'
         : cols.map(c => `
         <details class="border border-neutral-200 rounded-md group" data-col="${h(c.name)}">
-          <summary class="flex items-center justify-between px-4 py-3 hover:bg-neutral-50">
-            <div class="flex items-center gap-3">
-              <span class="text-neutral-400 mono text-xs group-open:rotate-90 transition-transform inline-block">▸</span>
+          <summary class="flex items-center justify-between px-3 py-2 hover:bg-neutral-50">
+            <div class="flex items-center gap-2">
+              <span class="text-neutral-400 group-open:rotate-90 transition-transform inline-block">${icon('chevron','icon-sm')}</span>
               <div>
-                <div class="font-medium mono text-sm">${h(c.name)}</div>
-                <div class="text-xs text-neutral-500">${c.documents} documento${c.documents===1?'':'s'} · criada ${fmtDate(c.createdAt)}</div>
+                <div class="font-medium mono text-xs">${h(c.name)}</div>
+                <div class="text-[10px] text-neutral-500">${c.documents} documento${c.documents===1?'':'s'} · criada ${fmtDate(c.createdAt)}</div>
               </div>
             </div>
-            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
-              <button data-add-doc="${h(c.name)}" class="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-white">+ documento</button>
-              <button data-del-col="${h(c.name)}" class="text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+            <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+              <button data-add-doc="${h(c.name)}" class="text-[11px] px-2 py-0.5 border border-neutral-300 rounded hover:bg-white inline-flex items-center gap-1">${icon('plus','icon-sm')} documento</button>
+              <button data-del-col="${h(c.name)}" class="text-[11px] px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50 inline-flex items-center gap-1">${icon('trash','icon-sm')} excluir</button>
             </div>
           </summary>
           <div class="border-t border-neutral-200 p-3 docs-wrap bg-neutral-50/50">
@@ -614,23 +887,23 @@ async function loadDocs(detailsEl, appId) {
 
 function renderDocCard(doc, appId, collection) {
   return `
-    <div class="border border-neutral-200 rounded-md bg-white mb-2 last:mb-0" data-doc-id="${h(doc.id)}">
-      <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-100">
-        <div class="flex items-center gap-2 text-xs">
+    <div class="border border-neutral-200 rounded-md bg-white mb-1.5 last:mb-0" data-doc-id="${h(doc.id)}">
+      <div class="flex items-center justify-between px-2 py-1.5 border-b border-neutral-100">
+        <div class="flex items-center gap-1.5 text-[11px]">
           <span class="mono text-neutral-700">${h(doc.id)}</span>
-          <button data-copy="${h(doc.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar id">⎘</button>
+          <button data-copy="${h(doc.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar id">${icon('copy','icon-sm')}</button>
           <span class="text-neutral-400">·</span>
           <span class="text-neutral-500">v${doc.version}</span>
           <span class="text-neutral-400">·</span>
           <span class="text-neutral-500">${fmtDate(doc.updatedAt)}</span>
         </div>
         <div class="flex items-center gap-1">
-          <button data-edit class="text-xs px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50">editar</button>
-          <button data-versions class="text-xs px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50">versões</button>
-          <button data-del class="text-xs px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+          <button data-edit class="text-[11px] px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50 inline-flex items-center gap-1">${icon('edit','icon-sm')} editar</button>
+          <button data-versions class="text-[11px] px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50 inline-flex items-center gap-1">${icon('history','icon-sm')} versões</button>
+          <button data-del class="text-[11px] px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50 inline-flex items-center gap-1">${icon('trash','icon-sm')} excluir</button>
         </div>
       </div>
-      <pre class="mono text-xs text-neutral-800 overflow-x-auto max-h-56 p-3 m-0">${h(JSON.stringify(doc.data, null, 2))}</pre>
+      <pre class="mono text-[11px] text-neutral-800 overflow-x-auto max-h-56 p-2 m-0">${h(JSON.stringify(doc.data, null, 2))}</pre>
     </div>`;
 }
 
@@ -793,37 +1066,37 @@ async function renderFilesTab(root, appId) {
     return;
   }
   root.innerHTML = `
-    <div class="mb-3 text-xs text-neutral-500">${items.length} arquivo${items.length===1?'':'s'} · ${fmtBytes(items.reduce((s,f)=>s+f.size,0))}</div>
-    <div class="border border-neutral-200 rounded-md overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
+    <div class="mb-2 text-[11px] text-neutral-500">${items.length} arquivo${items.length===1?'':'s'} · ${fmtBytes(items.reduce((s,f)=>s+f.size,0))}</div>
+    <div class="border border-neutral-200 rounded-md overflow-hidden table-wrap">
+      <table class="w-full text-xs">
+        <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase tracking-wide">
           <tr>
-            <th class="text-left font-medium px-3 py-2">Nome</th>
-            <th class="text-left font-medium px-3 py-2">Coleção</th>
-            <th class="text-left font-medium px-3 py-2">Tipo</th>
-            <th class="text-right font-medium px-3 py-2">Tamanho</th>
-            <th class="text-left font-medium px-3 py-2">Enviado</th>
-            <th class="px-3 py-2"></th>
+            <th class="text-left font-medium px-2 py-1.5">Nome</th>
+            <th class="text-left font-medium px-2 py-1.5">Coleção</th>
+            <th class="text-left font-medium px-2 py-1.5">Tipo</th>
+            <th class="text-right font-medium px-2 py-1.5">Tamanho</th>
+            <th class="text-left font-medium px-2 py-1.5">Enviado</th>
+            <th class="px-2 py-1.5"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-neutral-100">
           ${items.map(f => `
             <tr data-file="${h(f.id)}">
-              <td class="px-3 py-2.5">
-                <div class="font-medium">${h(f.originalName)}</div>
-                <div class="text-xs text-neutral-400 mono flex items-center gap-1">
+              <td class="px-2 py-1.5">
+                <div class="font-medium truncate max-w-[220px]" title="${h(f.originalName)}">${h(f.originalName)}</div>
+                <div class="text-[10px] text-neutral-400 mono flex items-center gap-1">
                   <span>${h(f.sha256.slice(0,16))}…</span>
-                  <button data-copy="${h(f.sha256)}" class="hover:text-neutral-700" title="Copiar sha256">⎘</button>
+                  <button data-copy="${h(f.sha256)}" class="hover:text-neutral-700" title="Copiar sha256">${icon('copy','icon-sm')}</button>
                 </div>
               </td>
-              <td class="px-3 py-2.5 mono text-xs">${h(f.collection)}</td>
-              <td class="px-3 py-2.5 text-xs text-neutral-600">${h(f.mimeType)}</td>
-              <td class="px-3 py-2.5 text-right mono text-xs">${fmtBytes(f.size)}</td>
-              <td class="px-3 py-2.5 text-xs text-neutral-500">${fmtDate(f.createdAt)}</td>
-              <td class="px-3 py-2.5 text-right whitespace-nowrap">
+              <td class="px-2 py-1.5 mono text-[11px]">${h(f.collection)}</td>
+              <td class="px-2 py-1.5 text-[11px] text-neutral-600">${h(f.mimeType)}</td>
+              <td class="px-2 py-1.5 text-right mono text-[11px]">${fmtBytes(f.size)}</td>
+              <td class="px-2 py-1.5 text-[11px] text-neutral-500">${fmtDate(f.createdAt)}</td>
+              <td class="px-2 py-1.5 text-right">
                 <a href="${api.fileDownloadUrl(appId, f.id)}" download="${h(f.originalName)}"
-                   class="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-50 mr-1">↓ baixar</a>
-                <button data-del-file="${h(f.id)}" class="text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+                   class="text-[11px] px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50 mr-1">↓ baixar</a>
+                <button data-del-file="${h(f.id)}" class="text-[11px] px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
               </td>
             </tr>
           `).join('')}

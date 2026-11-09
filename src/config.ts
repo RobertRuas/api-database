@@ -34,7 +34,7 @@ const parsed = EnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   // Imprime erros amigáveis e aborta.
-  console.error('❌ Variáveis de ambiente inválidas:');
+  console.error('[config] Variáveis de ambiente inválidas:');
   for (const issue of parsed.error.issues) {
     console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
   }

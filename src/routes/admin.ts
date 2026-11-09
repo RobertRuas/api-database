@@ -481,27 +481,178 @@ const routes: FastifyPluginAsync = async (app) => {
   // --- Stats detalhadas por aplicação ---
   app.get('/api/apps/:id/stats', { preHandler: adminAuth }, async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
-    const [collections, documents, versions, files, totalSize, keys] = await Promise.all([
+    const now = new Date();
+    const d24h = new Date(now.getTime() - 24 * 3600_000);
+    const d7d = new Date(now.getTime() - 7 * 86400_000);
+
+    const [
+      collections, documents, versions, files, totalSize, keys,
+      totalRequests, requests24h, requests7d, errorsTotal, avgLatency,
+      byStatus, topPaths,
+    ] = await Promise.all([
       prisma.collection.count({ where: { applicationId: id } }),
       prisma.document.count({ where: { collection: { applicationId: id }, deletedAt: null } }),
       prisma.documentVersion.count({ where: { document: { collection: { applicationId: id } } } }),
       prisma.fileAsset.count({ where: { applicationId: id } }),
-      prisma.fileAsset.aggregate({
-        _sum: { size: true },
-        where: { applicationId: id },
-      }),
+      prisma.fileAsset.aggregate({ _sum: { size: true }, where: { applicationId: id } }),
       prisma.apiKey.count({ where: { applicationId: id, revokedAt: null } }),
+
+      prisma.accessLog.count({ where: { applicationId: id } }),
+      prisma.accessLog.count({ where: { applicationId: id, createdAt: { gte: d24h } } }),
+      prisma.accessLog.count({ where: { applicationId: id, createdAt: { gte: d7d } } }),
+      prisma.accessLog.count({ where: { applicationId: id, status: { gte: 400 } } }),
+      prisma.accessLog.aggregate({ _avg: { durationMs: true }, where: { applicationId: id } }),
+
+      prisma.accessLog.groupBy({
+        by: ['status'],
+        where: { applicationId: id, createdAt: { gte: d7d } },
+        _count: { _all: true },
+      }),
+      prisma.accessLog.groupBy({
+        by: ['method', 'path'],
+        where: { applicationId: id, createdAt: { gte: d7d } },
+        _count: { _all: true },
+        orderBy: { _count: { path: 'desc' } },
+        take: 10,
+      }),
     ]);
+
     return {
       ok: true,
       data: {
-        collections,
-        documents,
-        versions,
-        files,
+        collections, documents, versions, files,
         storageBytes: totalSize._sum.size ?? 0,
         activeKeys: keys,
+        requests: {
+          total: totalRequests,
+          last24h: requests24h,
+          last7d: requests7d,
+          errors: errorsTotal,
+          avgLatencyMs: Math.round(avgLatency._avg.durationMs ?? 0),
+          byStatus: byStatus.map((s) => ({ status: s.status, count: s._count._all })),
+          topPaths: topPaths.map((p) => ({
+            method: p.method,
+            path: p.path,
+            count: p._count._all,
+          })),
+        },
       },
+    };
+  });
+
+  // --- Lista de requisições recentes (paginada) ---
+  app.get('/api/apps/:id/requests', { preHandler: adminAuth }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const { limit, offset, apiKeyId, status } = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        apiKeyId: z.string().optional(),
+        status: z.enum(['all', '2xx', '4xx', '5xx']).optional(),
+      })
+      .parse(req.query);
+
+    const where: Prisma.AccessLogWhereInput = { applicationId: id };
+    if (apiKeyId) where.apiKeyId = apiKeyId;
+    if (status === '2xx') where.status = { gte: 200, lt: 300 };
+    else if (status === '4xx') where.status = { gte: 400, lt: 500 };
+    else if (status === '5xx') where.status = { gte: 500 };
+
+    const [items, total] = await Promise.all([
+      prisma.accessLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.accessLog.count({ where }),
+    ]);
+
+    return {
+      ok: true,
+      data: {
+        items: items.map((r) => ({
+          id: r.id,
+          apiKeyId: r.apiKeyId,
+          method: r.method,
+          path: r.path,
+          status: r.status,
+          durationMs: r.durationMs,
+          ip: r.ip,
+          userAgent: r.userAgent,
+          createdAt: r.createdAt.toISOString(),
+        })),
+        total, limit, offset,
+      },
+    };
+  });
+
+  // --- Stats por chave de API ---
+  app.get('/api/apps/:id/keys/:keyId/stats', { preHandler: adminAuth }, async (req) => {
+    const { id, keyId } = z
+      .object({ id: z.string(), keyId: z.string() })
+      .parse(req.params);
+    const d24h = new Date(Date.now() - 24 * 3600_000);
+    const d7d = new Date(Date.now() - 7 * 86400_000);
+
+    const [total, last24h, last7d, errors, avg, byStatus] = await Promise.all([
+      prisma.accessLog.count({ where: { applicationId: id, apiKeyId: keyId } }),
+      prisma.accessLog.count({
+        where: { applicationId: id, apiKeyId: keyId, createdAt: { gte: d24h } },
+      }),
+      prisma.accessLog.count({
+        where: { applicationId: id, apiKeyId: keyId, createdAt: { gte: d7d } },
+      }),
+      prisma.accessLog.count({
+        where: { applicationId: id, apiKeyId: keyId, status: { gte: 400 } },
+      }),
+      prisma.accessLog.aggregate({
+        _avg: { durationMs: true },
+        where: { applicationId: id, apiKeyId: keyId },
+      }),
+      prisma.accessLog.groupBy({
+        by: ['status'],
+        where: { applicationId: id, apiKeyId: keyId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    return {
+      ok: true,
+      data: {
+        total, last24h, last7d, errors,
+        avgLatencyMs: Math.round(avg._avg.durationMs ?? 0),
+        byStatus: byStatus.map((s) => ({ status: s.status, count: s._count._all })),
+      },
+    };
+  });
+
+  // --- Lista de chaves com contadores de requisições ---
+  // (Reusa listKeys mas adiciona contadores via subqueries agregadas.)
+  app.get('/api/apps/:id/keys-stats', { preHandler: adminAuth }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const keys = await prisma.apiKey.findMany({
+      where: { applicationId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const counts = await prisma.accessLog.groupBy({
+      by: ['apiKeyId'],
+      where: { applicationId: id, apiKeyId: { in: keys.map((k) => k.id) } },
+      _count: { _all: true },
+    });
+    const byKey = new Map(counts.map((c) => [c.apiKeyId, c._count._all]));
+    return {
+      ok: true,
+      data: keys.map((k) => ({
+        id: k.id,
+        name: k.name,
+        prefix: k.prefix,
+        scopes: k.scopes,
+        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+        revokedAt: k.revokedAt?.toISOString() ?? null,
+        createdAt: k.createdAt.toISOString(),
+        requests: byKey.get(k.id) ?? 0,
+      })),
     };
   });
 

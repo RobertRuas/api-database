@@ -21,6 +21,7 @@ import { config } from './config.js';
 import { logger, fastifyLoggerConfig } from './logger.js';
 import { prisma } from './db.js';
 import { errorHandler } from './errors.js';
+import { registerAccessLog } from './access-log.js';
 
 import landingRoutes from './routes/landing.js';
 import docsRoutes from './routes/docs.js';
@@ -58,6 +59,9 @@ async function buildServer() {
     prefix: '/admin/static/',
     decorateReply: false,
   });
+
+  // ---- Access log (auditoria por request) ----
+  registerAccessLog(app);
 
   // ---- Handler global de erros ----
   app.setErrorHandler(errorHandler);
@@ -103,7 +107,7 @@ async function main() {
     await app.listen({ host: config.HOST, port: config.PORT });
     logger.info(
       { url: config.PUBLIC_URL, env: config.NODE_ENV },
-      `🚀 API DataBase pronta em ${config.PUBLIC_URL}`,
+      `API DataBase pronta em ${config.PUBLIC_URL}`,
     );
   } catch (err) {
     logger.error({ err }, 'Falha ao iniciar servidor');

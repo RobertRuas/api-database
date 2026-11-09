@@ -55,11 +55,12 @@
 
 ## 6. O que NÃO fazer
 
-- ❌ Criar documentação paralela (planning.md, notes.md). Use este arquivo e o MAP.
-- ❌ Instalar dependência sem necessidade clara — toda dep é débito técnico.
-- ❌ Fazer refatoração "de carona" numa correção de bug.
-- ❌ Alterar contratos de API sem incrementar a versão no `package.json` e registrar no `CHANGELOG.md`.
-- ❌ Esconder erros com `try/catch` vazio. Loggue ou propague.
+- **Proibido usar emojis em qualquer lugar** — código, HTML, strings, logs, comentários, commits, docs, README, mensagens ao usuário, favicon. Use ícones SVG profissionais (Lucide, Heroicons ou equivalentes inline) quando precisar de um símbolo visual. Nenhum caractere pictórico Unicode (U+1F000–U+1FFFF, U+2600–U+27BF e afins).
+- Criar documentação paralela (planning.md, notes.md). Use este arquivo e o MAP.
+- Instalar dependência sem necessidade clara — toda dep é débito técnico.
+- Fazer refatoração "de carona" numa correção de bug.
+- Alterar contratos de API sem incrementar a versão no `package.json` e registrar no `CHANGELOG.md`.
+- Esconder erros com `try/catch` vazio. Loggue ou propague.
 
 ## 7. Health check e observabilidade
 

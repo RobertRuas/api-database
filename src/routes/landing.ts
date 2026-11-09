@@ -13,7 +13,7 @@ const HTML = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>API DataBase</title>
   <meta name="description" content="API central de coleções e arquivos — minimalista, universal." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🗃️%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z'/%3E%3Cpath d='M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6'/%3E%3Cpath d='M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/%3E%3C/svg%3E" />
   <style>
     :root {
       --bg: #ffffff;
@@ -190,8 +190,8 @@ const HTML = `<!doctype html>
     </div>
 
     <div class="actions">
-      <a class="btn primary" href="/docs">📖 Manual de instruções</a>
-      <a class="btn" href="/admin">Painel admin →</a>
+      <a class="btn primary" href="/docs">Manual de instruções</a>
+      <a class="btn" href="/admin">Painel admin</a>
       <a class="btn" href="/health">Ver /health</a>
     </div>
 
