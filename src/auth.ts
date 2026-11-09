@@ -13,6 +13,26 @@ import { config } from './config.js';
 import { prisma } from './db.js';
 import { Errors } from './errors.js';
 
+/**
+ * Hash da senha admin — lê primeiro da tabela `settings` (chave `adminPasswordHash`);
+ * se vazia, usa o valor do .env (ADMIN_PASSWORD) e hasheia em memória.
+ * Após uma troca via painel, o hash persistido vence sobre o .env.
+ */
+export async function getAdminPasswordHash(): Promise<string> {
+  const row = await prisma.setting.findUnique({ where: { key: 'adminPasswordHash' } });
+  if (row && typeof row.value === 'string') return row.value;
+  return bcrypt.hash(config.ADMIN_PASSWORD, 12);
+}
+
+export async function setAdminPasswordHash(nextPlain: string): Promise<void> {
+  const hash = await bcrypt.hash(nextPlain, 12);
+  await prisma.setting.upsert({
+    where: { key: 'adminPasswordHash' },
+    update: { value: hash },
+    create: { key: 'adminPasswordHash', value: hash },
+  });
+}
+
 // ---------- Tipos auxiliares ----------
 
 declare module 'fastify' {

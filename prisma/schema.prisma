@@ -121,6 +121,16 @@ model FileAsset {
   @@map("files")
 }
 
+/// Configurações persistentes (key/value JSON).
+/// Usado para sobrescrever padrões do .env em runtime, ex.: senha de admin.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
 /// Log de acesso — auditoria leve.
 model AccessLog {
   id            String   @id @default(cuid())

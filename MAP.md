@@ -46,7 +46,7 @@ Data da última revisão: `2026-11-09`
 
 | Arquivo                | O que faz                                                            |
 |------------------------|----------------------------------------------------------------------|
-| `prisma/schema.prisma` | Modelos: `Application`, `ApiKey`, `Collection`, `Document`, `DocumentVersion`, `FileAsset`, `AccessLog`. |
+| `prisma/schema.prisma` | Modelos: `Application`, `ApiKey`, `Collection`, `Document`, `DocumentVersion`, `FileAsset`, `AccessLog`, `Setting`. |
 
 ## `src/` — núcleo
 
@@ -58,7 +58,8 @@ Data da última revisão: `2026-11-09`
 | `src/logger.ts`      | `logger` (instância Pino)                    | Logger estruturado compartilhado.                                |
 | `src/storage.ts`     | `saveFile`, `readFile`, `deleteFile`, `resolveStoredPath` | Abstração do filesystem. Caminhos previsíveis, hash sha256.      |
 | `src/errors.ts`      | `AppError`, `errorHandler`                   | Erros tipados + handler global do Fastify.                       |
-| `src/auth.ts`        | `apiKeyAuth`, `adminAuth`, `createApiKey`, `hashPassword`, `verifyPassword` | Middlewares de autenticação (API key e sessão admin) e utilitários. |
+| `src/auth.ts`        | `apiKeyAuth`, `adminAuth`, `createApiKey`, `hashPassword`, `verifyPassword`, `getAdminPasswordHash`, `setAdminPasswordHash` | Middlewares de autenticação (API key e sessão admin) e utilitários. Password hash em `settings` sobrescreve `.env`. |
+| `src/access-log.ts`  | `registerAccessLog`                          | Hook onResponse que grava cada request em `access_logs`.          |
 
 ## `src/routes/`
 
@@ -69,7 +70,7 @@ Data da última revisão: `2026-11-09`
 | `src/routes/health.ts`     | `GET /health` — status da API e do banco.                       |
 | `src/routes/documents.ts`  | `POST /v1/:collection` · `GET /v1/:collection` · `GET /v1/:collection/:id` · `PATCH /v1/:collection/:id` · `PUT /v1/:collection/:id` · `DELETE /v1/:collection/:id` · `GET /v1/:collection/:id/versions` |
 | `src/routes/files.ts`      | `POST /v1/files/:collection` · `GET /v1/files?collection=X` · `GET /v1/files/:id` · `DELETE /v1/files/:id` |
-| `src/routes/admin.ts`      | `GET /admin` · login/logout · CRUD apps · CRUD chaves · navegar coleções/documentos/versões · criar/editar/excluir documentos · excluir coleção · download/excluir arquivos · stats globais e por aplicação |
+| `src/routes/admin.ts`      | `GET /admin` · login/logout · alterar senha · info do sistema · purgar logs · CRUD apps · CRUD chaves · stats por chave · requisições por app · navegar coleções/documentos/versões · criar/editar/excluir documentos · excluir coleção · download/excluir arquivos · stats globais e por aplicação |
 
 ## `src/admin/`
 

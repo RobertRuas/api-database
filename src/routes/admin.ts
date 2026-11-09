@@ -16,7 +16,9 @@ import {
   adminAuth,
   clearAdminSession,
   createApiKey,
+  getAdminPasswordHash,
   issueAdminSession,
+  setAdminPasswordHash,
   verifyPassword,
   hashPassword,
   type Scope,
@@ -27,12 +29,6 @@ import { deleteFile as storageDelete, readFile as storageRead } from '../storage
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const INDEX_PATH = join(__dirname, '..', 'admin', 'index.html');
 
-// Hash da senha admin — calculado uma vez no boot para evitar custo em cada login.
-let adminPasswordHash: string | null = null;
-async function getAdminHash(): Promise<string> {
-  if (!adminPasswordHash) adminPasswordHash = await hashPassword(config.ADMIN_PASSWORD);
-  return adminPasswordHash;
-}
 
 const ScopeSchema = z.enum(['read', 'write', 'delete', 'files']);
 
@@ -50,7 +46,7 @@ const routes: FastifyPluginAsync = async (app) => {
       .parse(req.body);
 
     if (username !== config.ADMIN_USERNAME) throw Errors.unauthorized('Credenciais inválidas.');
-    const ok = await verifyPassword(password, await getAdminHash());
+    const ok = await verifyPassword(password, await getAdminPasswordHash());
     if (!ok) throw Errors.unauthorized('Credenciais inválidas.');
 
     issueAdminSession(reply, username);
@@ -66,6 +62,60 @@ const routes: FastifyPluginAsync = async (app) => {
   // ---- Me (verifica sessão) ----
   app.get('/api/me', { preHandler: adminAuth }, async (req) => {
     return { ok: true, data: { username: req.admin!.username } };
+  });
+
+  // ---- Alterar senha de admin ----
+  app.post('/api/password', { preHandler: adminAuth }, async (req) => {
+    const { current, next } = z
+      .object({
+        current: z.string().min(1),
+        next: z.string().min(8, 'Nova senha precisa de ao menos 8 caracteres.'),
+      })
+      .parse(req.body);
+
+    const ok = await verifyPassword(current, await getAdminPasswordHash());
+    if (!ok) throw Errors.unauthorized('Senha atual incorreta.');
+    if (current === next) throw Errors.badRequest('A nova senha deve ser diferente da atual.');
+
+    await setAdminPasswordHash(next);
+    return { ok: true, data: { changed: true } };
+  });
+
+  // ---- Informações do sistema (para o modal de configurações) ----
+  app.get('/api/system', { preHandler: adminAuth }, async () => {
+    const [logsTotal, oldestLog] = await Promise.all([
+      prisma.accessLog.count(),
+      prisma.accessLog.findFirst({ orderBy: { createdAt: 'asc' } }),
+    ]);
+    return {
+      ok: true,
+      data: {
+        env: config.NODE_ENV,
+        publicUrl: config.PUBLIC_URL,
+        nodeVersion: process.version,
+        uptimeSeconds: Math.round(process.uptime()),
+        memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        maxFileSize: config.MAX_FILE_SIZE,
+        rateLimitMax: config.RATE_LIMIT_MAX,
+        rateLimitWindow: config.RATE_LIMIT_WINDOW,
+        logs: {
+          total: logsTotal,
+          oldest: oldestLog?.createdAt.toISOString() ?? null,
+        },
+      },
+    };
+  });
+
+  // ---- Purgar access_logs antigos ----
+  app.post('/api/logs/purge', { preHandler: adminAuth }, async (req) => {
+    const { olderThanDays } = z
+      .object({ olderThanDays: z.coerce.number().int().min(1).max(3650) })
+      .parse(req.body);
+    const cutoff = new Date(Date.now() - olderThanDays * 86400_000);
+    const { count } = await prisma.accessLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return { ok: true, data: { deleted: count, cutoff: cutoff.toISOString() } };
   });
 
   // ---- Apps: listar ----

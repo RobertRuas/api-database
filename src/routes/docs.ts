@@ -101,12 +101,13 @@ const HTML = `<!doctype html>
     }
     .callout strong { font-weight: 600; }
 
-    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: -1px; }
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: -1px; flex-wrap: wrap; }
     .tabs button {
-      font: 500 13px var(--mono); background: transparent; border: none;
-      padding: 8px 14px; cursor: pointer; color: var(--muted);
-      border-bottom: 2px solid transparent;
+      font: 500 12px var(--mono); background: transparent; border: none;
+      padding: 7px 10px; cursor: pointer; color: var(--muted);
+      border-bottom: 2px solid transparent; white-space: nowrap;
     }
+    .tabs button:hover { color: var(--fg); }
     .tabs button.on { color: var(--fg); border-bottom-color: var(--fg); }
     .tab-panel { display: none; }
     .tab-panel.on { display: block; }
@@ -323,8 +324,16 @@ Authorization: Bearer apidb_live_abc123...</code></pre>
 
       <h2 id="sdks">Exemplos por linguagem</h2>
       <div class="tabs" id="tabs">
-        <button data-tab="js" class="on">JavaScript / Node</button>
+        <button data-tab="js" class="on">JS / Node</button>
+        <button data-tab="browser">Browser</button>
+        <button data-tab="ts">TypeScript</button>
         <button data-tab="py">Python</button>
+        <button data-tab="php">PHP</button>
+        <button data-tab="go">Go</button>
+        <button data-tab="rb">Ruby</button>
+        <button data-tab="java">Java</button>
+        <button data-tab="cs">C# / .NET</button>
+        <button data-tab="rust">Rust</button>
         <button data-tab="sh">cURL</button>
       </div>
 
@@ -350,26 +359,265 @@ Authorization: Bearer apidb_live_abc123...</code></pre>
 console.log(doc.id);</code></pre>
       </div>
 
+      <div class="tab-panel" data-panel="browser">
+<pre><code><span class="cmt">// Em navegadores — use com uma chave de uso restrito.</span>
+<span class="cmt">// Nunca coloque uma chave com escopo "delete" em frontend público.</span>
+<span class="kw">const</span> API = <span class="str">"https://api.windlog.org"</span>;
+<span class="kw">const</span> KEY = <span class="str">"apidb_live_..."</span>;
+
+<span class="kw">async function</span> getDoc(collection, id) {
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">\`\${API}/v1/\${collection}/\${id}\`</span>, {
+    headers: { <span class="str">"X-API-Key"</span>: KEY },
+  });
+  <span class="kw">if</span> (!res.ok) <span class="kw">throw new</span> Error(<span class="str">\`HTTP \${res.status}\`</span>);
+  <span class="kw">const</span> { data } = <span class="kw">await</span> res.json();
+  <span class="kw">return</span> data;
+}
+
+<span class="cmt">// Upload com &lt;input type="file"&gt;</span>
+<span class="kw">async function</span> uploadFile(collection, file) {
+  <span class="kw">const</span> fd = <span class="kw">new</span> FormData();
+  fd.append(<span class="str">"file"</span>, file);
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">\`\${API}/v1/files/\${collection}\`</span>, {
+    method: <span class="str">"POST"</span>,
+    headers: { <span class="str">"X-API-Key"</span>: KEY },
+    body: fd,
+  });
+  <span class="kw">return</span> (<span class="kw">await</span> res.json()).data;
+}</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="ts">
+<pre><code><span class="cmt">// Mini-SDK tipado para TypeScript / Deno / Bun.</span>
+<span class="kw">interface</span> Envelope&lt;T&gt; { ok: <span class="kw">boolean</span>; data?: T; error?: { code: <span class="kw">string</span>; message: <span class="kw">string</span> }; }
+<span class="kw">interface</span> Doc&lt;T = <span class="kw">unknown</span>&gt; { id: <span class="kw">string</span>; data: T; version: <span class="kw">number</span>; updatedAt: <span class="kw">string</span>; }
+
+<span class="kw">export class</span> ApiDatabase {
+  <span class="kw">constructor</span>(<span class="kw">private</span> baseUrl: <span class="kw">string</span>, <span class="kw">private</span> key: <span class="kw">string</span>) {}
+
+  <span class="kw">private async</span> req&lt;T&gt;(path: <span class="kw">string</span>, init: RequestInit = {}): Promise&lt;T&gt; {
+    <span class="kw">const</span> r = <span class="kw">await</span> fetch(<span class="str">\`\${</span><span class="kw">this</span>.baseUrl<span class="str">}\${path}\`</span>, {
+      ...init,
+      headers: { <span class="str">"X-API-Key"</span>: <span class="kw">this</span>.key, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>, ...init.headers },
+    });
+    <span class="kw">const</span> body = <span class="kw">await</span> r.json() <span class="kw">as</span> Envelope&lt;T&gt;;
+    <span class="kw">if</span> (!body.ok) <span class="kw">throw new</span> Error(body.error?.message ?? <span class="str">\`HTTP \${r.status}\`</span>);
+    <span class="kw">return</span> body.data!;
+  }
+
+  create&lt;T&gt;(col: <span class="kw">string</span>, data: T) { <span class="kw">return</span> <span class="kw">this</span>.req&lt;Doc&lt;T&gt;&gt;(<span class="str">\`/v1/\${col}\`</span>, { method: <span class="str">"POST"</span>, body: JSON.stringify(data) }); }
+  get&lt;T&gt;(col: <span class="kw">string</span>, id: <span class="kw">string</span>) { <span class="kw">return</span> <span class="kw">this</span>.req&lt;Doc&lt;T&gt;&gt;(<span class="str">\`/v1/\${col}/\${id}\`</span>); }
+  patch&lt;T&gt;(col: <span class="kw">string</span>, id: <span class="kw">string</span>, patch: Partial&lt;T&gt;) { <span class="kw">return</span> <span class="kw">this</span>.req&lt;Doc&lt;T&gt;&gt;(<span class="str">\`/v1/\${col}/\${id}\`</span>, { method: <span class="str">"PATCH"</span>, body: JSON.stringify(patch) }); }
+  del(col: <span class="kw">string</span>, id: <span class="kw">string</span>) { <span class="kw">return</span> <span class="kw">this</span>.req&lt;{ id: <span class="kw">string</span>; deleted: <span class="kw">boolean</span> }&gt;(<span class="str">\`/v1/\${col}/\${id}\`</span>, { method: <span class="str">"DELETE"</span> }); }
+}
+
+<span class="kw">const</span> db = <span class="kw">new</span> ApiDatabase(<span class="str">"https://api.windlog.org"</span>, process.env.APIDB_KEY!);
+<span class="kw">const</span> doc = <span class="kw">await</span> db.create(<span class="str">"configs"</span>, { theme: <span class="str">"dark"</span> });</code></pre>
+      </div>
+
       <div class="tab-panel" data-panel="py">
 <pre><code><span class="kw">import</span> os, requests
 
 API = <span class="str">"https://api.windlog.org"</span>
 KEY = os.environ[<span class="str">"APIDB_KEY"</span>]
+S = requests.Session()
+S.headers.update({<span class="str">"X-API-Key"</span>: KEY})
 
-<span class="kw">def</span> set(collection, data):
-    r = requests.post(
-        <span class="str">f"{API}/v1/{collection}"</span>,
-        headers={<span class="str">"X-API-Key"</span>: KEY},
-        json=data,
-    )
+<span class="kw">def</span> call(method, path, **kw):
+    r = S.request(method, <span class="str">f"{API}{path}"</span>, timeout=15, **kw)
     r.raise_for_status()
     body = r.json()
     <span class="kw">if not</span> body[<span class="str">"ok"</span>]:
         <span class="kw">raise</span> RuntimeError(body[<span class="str">"error"</span>][<span class="str">"message"</span>])
     <span class="kw">return</span> body[<span class="str">"data"</span>]
 
-doc = set(<span class="str">"configs"</span>, {<span class="str">"theme"</span>: <span class="str">"dark"</span>})
-<span class="kw">print</span>(doc[<span class="str">"id"</span>])</code></pre>
+<span class="cmt"># CRUD</span>
+doc = call(<span class="str">"POST"</span>, <span class="str">"/v1/configs"</span>, json={<span class="str">"theme"</span>: <span class="str">"dark"</span>})
+doc = call(<span class="str">"PATCH"</span>, <span class="str">f"/v1/configs/{doc['id']}"</span>, json={<span class="str">"locale"</span>: <span class="str">"pt-BR"</span>})
+all_ = call(<span class="str">"GET"</span>, <span class="str">"/v1/configs"</span>)[<span class="str">"items"</span>]
+
+<span class="cmt"># Upload</span>
+<span class="kw">with</span> open(<span class="str">"dump.sql.gz"</span>, <span class="str">"rb"</span>) <span class="kw">as</span> f:
+    file = call(<span class="str">"POST"</span>, <span class="str">"/v1/files/backups"</span>, files={<span class="str">"file"</span>: f})
+<span class="kw">print</span>(file[<span class="str">"id"</span>])</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="php">
+<pre><code><span class="kw">&lt;?php</span>
+<span class="kw">const</span> API_URL = <span class="str">'https://api.windlog.org'</span>;
+<span class="kw">const</span> API_KEY = <span class="str">'apidb_live_...'</span>;
+
+<span class="kw">function</span> apidb(<span class="kw">string</span> $method, <span class="kw">string</span> $path, ?array $data = <span class="kw">null</span>): array {
+    $ch = curl_init(API_URL . $path);
+    $headers = [<span class="str">'X-API-Key: '</span> . API_KEY];
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST  =&gt; $method,
+        CURLOPT_RETURNTRANSFER =&gt; <span class="kw">true</span>,
+        CURLOPT_TIMEOUT        =&gt; 15,
+    ]);
+    <span class="kw">if</span> ($data !== <span class="kw">null</span>) {
+        $headers[] = <span class="str">'Content-Type: application/json'</span>;
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    $body = json_decode(curl_exec($ch), <span class="kw">true</span>);
+    curl_close($ch);
+    <span class="kw">if</span> (empty($body[<span class="str">'ok'</span>])) <span class="kw">throw new</span> RuntimeException($body[<span class="str">'error'</span>][<span class="str">'message'</span>] ?? <span class="str">'erro'</span>);
+    <span class="kw">return</span> $body[<span class="str">'data'</span>];
+}
+
+$doc = apidb(<span class="str">'POST'</span>, <span class="str">'/v1/configs'</span>, [<span class="str">'theme'</span> =&gt; <span class="str">'dark'</span>]);
+<span class="kw">echo</span> $doc[<span class="str">'id'</span>];</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="go">
+<pre><code><span class="kw">package</span> main
+
+<span class="kw">import</span> (
+    <span class="str">"bytes"</span>
+    <span class="str">"encoding/json"</span>
+    <span class="str">"errors"</span>
+    <span class="str">"net/http"</span>
+    <span class="str">"os"</span>
+)
+
+<span class="kw">const</span> apiURL = <span class="str">"https://api.windlog.org"</span>
+
+<span class="kw">type</span> envelope <span class="kw">struct</span> {
+    OK    <span class="kw">bool</span>            <span class="str">\`json:"ok"\`</span>
+    Data  json.RawMessage <span class="str">\`json:"data"\`</span>
+    Error <span class="kw">struct</span>{ Message <span class="kw">string</span> <span class="str">\`json:"message"\`</span> } <span class="str">\`json:"error"\`</span>
+}
+
+<span class="kw">func</span> call(method, path <span class="kw">string</span>, body <span class="kw">any</span>) (json.RawMessage, <span class="kw">error</span>) {
+    <span class="kw">var</span> buf *bytes.Buffer
+    <span class="kw">if</span> body != <span class="kw">nil</span> {
+        b, _ := json.Marshal(body)
+        buf = bytes.NewBuffer(b)
+    } <span class="kw">else</span> { buf = &amp;bytes.Buffer{} }
+    req, _ := http.NewRequest(method, apiURL+path, buf)
+    req.Header.Set(<span class="str">"X-API-Key"</span>, os.Getenv(<span class="str">"APIDB_KEY"</span>))
+    req.Header.Set(<span class="str">"Content-Type"</span>, <span class="str">"application/json"</span>)
+    res, err := http.DefaultClient.Do(req)
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, err }
+    <span class="kw">defer</span> res.Body.Close()
+    <span class="kw">var</span> env envelope
+    <span class="kw">if</span> err := json.NewDecoder(res.Body).Decode(&amp;env); err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, err }
+    <span class="kw">if</span> !env.OK { <span class="kw">return</span> <span class="kw">nil</span>, errors.New(env.Error.Message) }
+    <span class="kw">return</span> env.Data, <span class="kw">nil</span>
+}
+
+<span class="kw">func</span> main() {
+    data, err := call(<span class="str">"POST"</span>, <span class="str">"/v1/configs"</span>, <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">any</span>{<span class="str">"theme"</span>: <span class="str">"dark"</span>})
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">panic</span>(err) }
+    println(<span class="kw">string</span>(data))
+}</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="rb">
+<pre><code><span class="kw">require</span> <span class="str">'net/http'</span>
+<span class="kw">require</span> <span class="str">'json'</span>
+
+API = URI(<span class="str">'https://api.windlog.org'</span>)
+KEY = ENV.fetch(<span class="str">'APIDB_KEY'</span>)
+
+<span class="kw">def</span> apidb(method, path, body = <span class="kw">nil</span>)
+  uri = URI.join(API, path)
+  req = <span class="kw">case</span> method
+        <span class="kw">when</span> <span class="str">:get</span>    <span class="kw">then</span> Net::HTTP::Get.new(uri)
+        <span class="kw">when</span> <span class="str">:post</span>   <span class="kw">then</span> Net::HTTP::Post.new(uri)
+        <span class="kw">when</span> <span class="str">:patch</span>  <span class="kw">then</span> Net::HTTP::Patch.new(uri)
+        <span class="kw">when</span> <span class="str">:delete</span> <span class="kw">then</span> Net::HTTP::Delete.new(uri)
+        <span class="kw">end</span>
+  req[<span class="str">'X-API-Key'</span>] = KEY
+  req[<span class="str">'Content-Type'</span>] = <span class="str">'application/json'</span>
+  req.body = body.to_json <span class="kw">if</span> body
+  res = Net::HTTP.start(uri.host, uri.port, use_ssl: <span class="kw">true</span>) { |h| h.request(req) }
+  json = JSON.parse(res.body)
+  <span class="kw">raise</span> json.dig(<span class="str">'error'</span>, <span class="str">'message'</span>) <span class="kw">unless</span> json[<span class="str">'ok'</span>]
+  json[<span class="str">'data'</span>]
+<span class="kw">end</span>
+
+doc = apidb(<span class="str">:post</span>, <span class="str">'/v1/configs'</span>, theme: <span class="str">'dark'</span>)
+puts doc[<span class="str">'id'</span>]</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="java">
+<pre><code><span class="kw">import</span> java.net.URI;
+<span class="kw">import</span> java.net.http.*;
+
+<span class="kw">public class</span> ApiDatabase {
+    <span class="kw">static final</span> String API = <span class="str">"https://api.windlog.org"</span>;
+    <span class="kw">static final</span> String KEY = System.getenv(<span class="str">"APIDB_KEY"</span>);
+    <span class="kw">static final</span> HttpClient CLIENT = HttpClient.newHttpClient();
+
+    <span class="kw">static</span> String call(String method, String path, String body) <span class="kw">throws</span> Exception {
+        HttpRequest.BodyPublisher pub = body == <span class="kw">null</span>
+            ? HttpRequest.BodyPublishers.noBody()
+            : HttpRequest.BodyPublishers.ofString(body);
+        HttpRequest req = HttpRequest.newBuilder(URI.create(API + path))
+            .method(method, pub)
+            .header(<span class="str">"X-API-Key"</span>, KEY)
+            .header(<span class="str">"Content-Type"</span>, <span class="str">"application/json"</span>)
+            .build();
+        HttpResponse&lt;String&gt; res = CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+        <span class="kw">if</span> (res.statusCode() &gt;= 400) <span class="kw">throw new</span> RuntimeException(res.body());
+        <span class="kw">return</span> res.body();
+    }
+
+    <span class="kw">public static void</span> main(String[] args) <span class="kw">throws</span> Exception {
+        System.out.println(call(<span class="str">"POST"</span>, <span class="str">"/v1/configs"</span>, <span class="str">"{\\"theme\\":\\"dark\\"}"</span>));
+    }
+}</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="cs">
+<pre><code><span class="kw">using</span> System.Net.Http.Json;
+
+<span class="kw">var</span> http = <span class="kw">new</span> HttpClient { BaseAddress = <span class="kw">new</span>(<span class="str">"https://api.windlog.org/"</span>) };
+http.DefaultRequestHeaders.Add(<span class="str">"X-API-Key"</span>, Environment.GetEnvironmentVariable(<span class="str">"APIDB_KEY"</span>));
+
+<span class="kw">record</span> Envelope&lt;T&gt;(<span class="kw">bool</span> ok, T? data, ErrorBody? error);
+<span class="kw">record</span> ErrorBody(<span class="kw">string</span> code, <span class="kw">string</span> message);
+
+<span class="kw">async</span> Task&lt;T&gt; Call&lt;T&gt;(HttpMethod m, <span class="kw">string</span> path, <span class="kw">object</span>? body = <span class="kw">null</span>) {
+    <span class="kw">var</span> req = <span class="kw">new</span> HttpRequestMessage(m, path);
+    <span class="kw">if</span> (body != <span class="kw">null</span>) req.Content = JsonContent.Create(body);
+    <span class="kw">var</span> res = <span class="kw">await</span> http.SendAsync(req);
+    <span class="kw">var</span> env = <span class="kw">await</span> res.Content.ReadFromJsonAsync&lt;Envelope&lt;T&gt;&gt;();
+    <span class="kw">if</span> (env is { ok: <span class="kw">true</span>, data: <span class="kw">var</span> d }) <span class="kw">return</span> d!;
+    <span class="kw">throw new</span> Exception(env?.error?.message ?? <span class="str">"erro"</span>);
+}
+
+<span class="kw">var</span> doc = <span class="kw">await</span> Call&lt;<span class="kw">dynamic</span>&gt;(HttpMethod.Post, <span class="str">"v1/configs"</span>, <span class="kw">new</span> { theme = <span class="str">"dark"</span> });
+Console.WriteLine(doc.id);</code></pre>
+      </div>
+
+      <div class="tab-panel" data-panel="rust">
+<pre><code><span class="cmt">// Cargo.toml: reqwest = { version = "0.12", features = ["json"] }, tokio = { version = "1", features = ["full"] }, serde_json = "1"</span>
+<span class="kw">use</span> serde_json::{json, Value};
+
+<span class="kw">const</span> API: &amp;<span class="kw">str</span> = <span class="str">"https://api.windlog.org"</span>;
+
+<span class="kw">async fn</span> call(method: reqwest::Method, path: &amp;<span class="kw">str</span>, body: Option&lt;Value&gt;) -&gt; <span class="kw">anyhow</span>::Result&lt;Value&gt; {
+    <span class="kw">let</span> key = std::env::var(<span class="str">"APIDB_KEY"</span>)?;
+    <span class="kw">let</span> client = reqwest::Client::new();
+    <span class="kw">let mut</span> req = client.request(method, <span class="kw">format!</span>(<span class="str">"{API}{path}"</span>))
+        .header(<span class="str">"X-API-Key"</span>, key);
+    <span class="kw">if let</span> Some(b) = body { req = req.json(&amp;b); }
+    <span class="kw">let</span> env: Value = req.send().<span class="kw">await</span>?.json().<span class="kw">await</span>?;
+    <span class="kw">if</span> env[<span class="str">"ok"</span>].as_bool() != Some(<span class="kw">true</span>) {
+        <span class="kw">anyhow::bail!</span>(<span class="str">"{}"</span>, env[<span class="str">"error"</span>][<span class="str">"message"</span>]);
+    }
+    Ok(env[<span class="str">"data"</span>].clone())
+}
+
+<span class="kw">#[tokio::main]</span>
+<span class="kw">async fn</span> main() -&gt; <span class="kw">anyhow</span>::Result&lt;()&gt; {
+    <span class="kw">let</span> doc = call(reqwest::Method::POST, <span class="str">"/v1/configs"</span>, Some(json!({<span class="str">"theme"</span>: <span class="str">"dark"</span>}))).<span class="kw">await</span>?;
+    <span class="kw">println!</span>(<span class="str">"{}"</span>, doc[<span class="str">"id"</span>]);
+    Ok(())
+}</code></pre>
       </div>
 
       <div class="tab-panel" data-panel="sh">
@@ -386,10 +634,20 @@ doc = set(<span class="str">"configs"</span>, {<span class="str">"theme"</span>:
 <span class="kw">curl</span> -H <span class="str">"X-API-Key: $APIDB_KEY"</span> \\
   https://api.windlog.org/v1/configs
 
+<span class="cmt"># atualizar (merge parcial)</span>
+<span class="kw">curl</span> -X PATCH https://api.windlog.org/v1/configs/DOC_ID \\
+  -H <span class="str">"X-API-Key: $APIDB_KEY"</span> -H <span class="str">"Content-Type: application/json"</span> \\
+  -d <span class="str">'{"locale":"pt-BR"}'</span>
+
 <span class="cmt"># upload</span>
 <span class="kw">curl</span> -X POST https://api.windlog.org/v1/files/backups \\
   -H <span class="str">"X-API-Key: $APIDB_KEY"</span> \\
-  -F <span class="str">"file=@./dump.sql.gz"</span></code></pre>
+  -F <span class="str">"file=@./dump.sql.gz"</span>
+
+<span class="cmt"># download</span>
+<span class="kw">curl</span> -H <span class="str">"X-API-Key: $APIDB_KEY"</span> \\
+  -o dump.sql.gz \\
+  https://api.windlog.org/v1/files/FILE_ID</code></pre>
       </div>
 
       <footer>
