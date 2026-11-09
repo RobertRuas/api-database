@@ -5,7 +5,8 @@
  * O HTML do painel vem de src/admin/index.html (SPA single-file).
  */
 import type { FastifyPluginAsync } from 'fastify';
-import { readFile } from 'node:fs/promises';
+import type { Prisma } from '@prisma/client';
+import { readFile as fsReadFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -21,6 +22,7 @@ import {
   type Scope,
 } from '../auth.js';
 import { Errors } from '../errors.js';
+import { deleteFile as storageDelete, readFile as storageRead } from '../storage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const INDEX_PATH = join(__dirname, '..', 'admin', 'index.html');
@@ -37,7 +39,7 @@ const ScopeSchema = z.enum(['read', 'write', 'delete', 'files']);
 const routes: FastifyPluginAsync = async (app) => {
   // ---- Painel (HTML) ----
   app.get('/', async (_req, reply) => {
-    const html = await readFile(INDEX_PATH, 'utf8');
+    const html = await fsReadFile(INDEX_PATH, 'utf8');
     reply.header('Content-Type', 'text/html; charset=utf-8').send(html);
   });
 
@@ -294,6 +296,211 @@ const routes: FastifyPluginAsync = async (app) => {
         total,
         limit,
         offset,
+      },
+    };
+  });
+
+  // ============================================================
+  //  Manipulação direta de dados (admin — bypassa API keys)
+  // ============================================================
+
+  const DocIdSchema = z.string().min(1).max(64);
+  const CollectionNameSchema = z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/);
+
+  // --- Criar documento manualmente ---
+  app.post(
+    '/api/apps/:id/collections/:name/documents',
+    { preHandler: adminAuth },
+    async (req) => {
+      const { id, name } = z
+        .object({ id: z.string(), name: CollectionNameSchema })
+        .parse(req.params);
+      const data = z.record(z.unknown()).parse(req.body);
+
+      const col = await prisma.collection.upsert({
+        where: { applicationId_name: { applicationId: id, name } },
+        update: {},
+        create: { applicationId: id, name },
+      });
+
+      const json = data as Prisma.InputJsonValue;
+      const created = await prisma.$transaction(async (tx) => {
+        const doc = await tx.document.create({ data: { collectionId: col.id, data: json } });
+        await tx.documentVersion.create({
+          data: { documentId: doc.id, version: doc.version, data: json },
+        });
+        return doc;
+      });
+
+      return {
+        ok: true,
+        data: {
+          id: created.id,
+          data: created.data,
+          version: created.version,
+          createdAt: created.createdAt.toISOString(),
+          updatedAt: created.updatedAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  // --- Editar documento manualmente (substitui data completo) ---
+  app.put(
+    '/api/apps/:id/collections/:name/documents/:docId',
+    { preHandler: adminAuth },
+    async (req) => {
+      const { id, name, docId } = z
+        .object({ id: z.string(), name: CollectionNameSchema, docId: DocIdSchema })
+        .parse(req.params);
+      const data = z.record(z.unknown()).parse(req.body);
+
+      const doc = await prisma.document.findUnique({
+        where: { id: docId },
+        include: { collection: true },
+      });
+      if (!doc || doc.collection.applicationId !== id || doc.collection.name !== name) {
+        throw Errors.notFound('Documento');
+      }
+
+      const json = data as Prisma.InputJsonValue;
+      const updated = await prisma.$transaction(async (tx) => {
+        const u = await tx.document.update({
+          where: { id: doc.id },
+          data: { data: json, version: { increment: 1 }, deletedAt: null },
+        });
+        await tx.documentVersion.create({
+          data: { documentId: u.id, version: u.version, data: json },
+        });
+        return u;
+      });
+
+      return {
+        ok: true,
+        data: {
+          id: updated.id,
+          data: updated.data,
+          version: updated.version,
+          updatedAt: updated.updatedAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  // --- Deletar documento (hard delete, remove tudo incluindo versões) ---
+  app.delete(
+    '/api/apps/:id/collections/:name/documents/:docId',
+    { preHandler: adminAuth },
+    async (req) => {
+      const { id, name, docId } = z
+        .object({ id: z.string(), name: CollectionNameSchema, docId: DocIdSchema })
+        .parse(req.params);
+      const doc = await prisma.document.findUnique({
+        where: { id: docId },
+        include: { collection: true },
+      });
+      if (!doc || doc.collection.applicationId !== id || doc.collection.name !== name) {
+        throw Errors.notFound('Documento');
+      }
+      await prisma.document.delete({ where: { id: doc.id } });
+      return { ok: true, data: { id: docId, deleted: true } };
+    },
+  );
+
+  // --- Versões de um documento ---
+  app.get(
+    '/api/apps/:id/collections/:name/documents/:docId/versions',
+    { preHandler: adminAuth },
+    async (req) => {
+      const { id, name, docId } = z
+        .object({ id: z.string(), name: CollectionNameSchema, docId: DocIdSchema })
+        .parse(req.params);
+      const doc = await prisma.document.findUnique({
+        where: { id: docId },
+        include: { collection: true, versions: { orderBy: { version: 'desc' } } },
+      });
+      if (!doc || doc.collection.applicationId !== id || doc.collection.name !== name) {
+        throw Errors.notFound('Documento');
+      }
+      return {
+        ok: true,
+        data: doc.versions.map((v) => ({
+          version: v.version,
+          data: v.data,
+          createdAt: v.createdAt.toISOString(),
+        })),
+      };
+    },
+  );
+
+  // --- Deletar coleção inteira ---
+  app.delete('/api/apps/:id/collections/:name', { preHandler: adminAuth }, async (req) => {
+    const { id, name } = z
+      .object({ id: z.string(), name: CollectionNameSchema })
+      .parse(req.params);
+    const col = await prisma.collection.findUnique({
+      where: { applicationId_name: { applicationId: id, name } },
+    });
+    if (!col) throw Errors.notFound('Coleção');
+    await prisma.collection.delete({ where: { id: col.id } });
+    return { ok: true, data: { collection: name, deleted: true } };
+  });
+
+  // --- Download de arquivo (admin) ---
+  app.get('/api/apps/:id/files/:fileId/download', { preHandler: adminAuth }, async (req, reply) => {
+    const { id, fileId } = z
+      .object({ id: z.string(), fileId: z.string() })
+      .parse(req.params);
+    const file = await prisma.fileAsset.findUnique({ where: { id: fileId } });
+    if (!file || file.applicationId !== id) throw Errors.notFound('Arquivo');
+
+    const stream = await storageRead(file.storedPath);
+    reply
+      .header('Content-Type', file.mimeType)
+      .header('Content-Length', file.size)
+      .header(
+        'Content-Disposition',
+        `attachment; filename="${encodeURIComponent(file.originalName)}"`,
+      );
+    return reply.send(stream);
+  });
+
+  // --- Deletar arquivo (admin) ---
+  app.delete('/api/apps/:id/files/:fileId', { preHandler: adminAuth }, async (req) => {
+    const { id, fileId } = z
+      .object({ id: z.string(), fileId: z.string() })
+      .parse(req.params);
+    const file = await prisma.fileAsset.findUnique({ where: { id: fileId } });
+    if (!file || file.applicationId !== id) throw Errors.notFound('Arquivo');
+
+    await storageDelete(file.storedPath);
+    await prisma.fileAsset.delete({ where: { id: file.id } });
+    return { ok: true, data: { id: fileId, deleted: true } };
+  });
+
+  // --- Stats detalhadas por aplicação ---
+  app.get('/api/apps/:id/stats', { preHandler: adminAuth }, async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const [collections, documents, versions, files, totalSize, keys] = await Promise.all([
+      prisma.collection.count({ where: { applicationId: id } }),
+      prisma.document.count({ where: { collection: { applicationId: id }, deletedAt: null } }),
+      prisma.documentVersion.count({ where: { document: { collection: { applicationId: id } } } }),
+      prisma.fileAsset.count({ where: { applicationId: id } }),
+      prisma.fileAsset.aggregate({
+        _sum: { size: true },
+        where: { applicationId: id },
+      }),
+      prisma.apiKey.count({ where: { applicationId: id, revokedAt: null } }),
+    ]);
+    return {
+      ok: true,
+      data: {
+        collections,
+        documents,
+        versions,
+        files,
+        storageBytes: totalSize._sum.size ?? 0,
+        activeKeys: keys,
       },
     };
   });

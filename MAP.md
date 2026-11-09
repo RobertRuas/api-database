@@ -65,10 +65,11 @@ Data da última revisão: `2026-11-09`
 | Arquivo                    | Rotas registradas                                               |
 |----------------------------|-----------------------------------------------------------------|
 | `src/routes/landing.ts`    | `GET /` — landing page pública (status ao vivo).                |
+| `src/routes/docs.ts`       | `GET /docs` — manual completo (tema branco, sidebar, exemplos). |
 | `src/routes/health.ts`     | `GET /health` — status da API e do banco.                       |
 | `src/routes/documents.ts`  | `POST /v1/:collection` · `GET /v1/:collection` · `GET /v1/:collection/:id` · `PATCH /v1/:collection/:id` · `PUT /v1/:collection/:id` · `DELETE /v1/:collection/:id` · `GET /v1/:collection/:id/versions` |
 | `src/routes/files.ts`      | `POST /v1/files/:collection` · `GET /v1/files?collection=X` · `GET /v1/files/:id` · `DELETE /v1/files/:id` |
-| `src/routes/admin.ts`      | `GET /admin` · `POST /admin/login` · `POST /admin/logout` · `GET/POST/PATCH/DELETE /admin/api/apps` · `POST/DELETE /admin/api/apps/:id/keys` · `GET /admin/api/apps/:id/collections` · `GET /admin/api/apps/:id/collections/:name/documents` · `GET /admin/api/apps/:id/files` · `GET /admin/api/stats` |
+| `src/routes/admin.ts`      | `GET /admin` · login/logout · CRUD apps · CRUD chaves · navegar coleções/documentos/versões · criar/editar/excluir documentos · excluir coleção · download/excluir arquivos · stats globais e por aplicação |
 
 ## `src/admin/`
 

@@ -23,6 +23,7 @@ import { prisma } from './db.js';
 import { errorHandler } from './errors.js';
 
 import landingRoutes from './routes/landing.js';
+import docsRoutes from './routes/docs.js';
 import healthRoutes from './routes/health.js';
 import documentRoutes from './routes/documents.js';
 import fileRoutes from './routes/files.js';
@@ -71,6 +72,7 @@ async function buildServer() {
 
   // ---- Rotas ----
   await app.register(landingRoutes);
+  await app.register(docsRoutes);
   await app.register(healthRoutes);
   await app.register(documentRoutes, { prefix: '/v1' });
   await app.register(fileRoutes, { prefix: '/v1/files' });

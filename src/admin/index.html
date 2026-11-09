@@ -71,7 +71,15 @@ const api = {
   revokeKey:       (appId, kId)  => api.request(`/admin/api/apps/${appId}/keys/${kId}`, { method: 'DELETE' }),
   listCollections: (id)          => api.request(`/admin/api/apps/${id}/collections`),
   listDocuments:   (id, name)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents`),
+  createDocument:  (id, name, d) => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents`, { method: 'POST', body: d }),
+  updateDocument:  (id, name, docId, d) => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents/${docId}`, { method: 'PUT', body: d }),
+  deleteDocument:  (id, name, docId)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents/${docId}`, { method: 'DELETE' }),
+  documentVersions:(id, name, docId)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}/documents/${docId}/versions`),
+  deleteCollection:(id, name)    => api.request(`/admin/api/apps/${id}/collections/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listFiles:       (id)          => api.request(`/admin/api/apps/${id}/files`),
+  deleteFile:      (id, fileId)  => api.request(`/admin/api/apps/${id}/files/${fileId}`, { method: 'DELETE' }),
+  fileDownloadUrl: (id, fileId)  => `/admin/api/apps/${id}/files/${fileId}/download`,
+  appStats:        (id)          => api.request(`/admin/api/apps/${id}/stats`),
 };
 
 // ---------- Utils ----------
@@ -183,6 +191,7 @@ async function renderDashboard() {
         </div>
         <div class="flex items-center gap-3 text-sm">
           <a href="/" class="text-neutral-600 hover:text-neutral-900">↗ pública</a>
+          <a href="/docs" class="text-neutral-600 hover:text-neutral-900">📖 manual</a>
           <span class="h-4 w-px bg-neutral-200"></span>
           <span class="text-neutral-500" id="who">—</span>
           <button id="logout" class="text-neutral-700 hover:text-neutral-900 border border-neutral-200 rounded-md px-3 py-1 text-xs hover:border-neutral-400 transition">Sair</button>
@@ -539,61 +548,252 @@ function openNewKeyModal(appId, onCreated) {
 
 async function renderCollectionsTab(root, appId) {
   const cols = await api.listCollections(appId);
-  if (!cols.length) {
-    root.innerHTML = `<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">
-      Sem coleções ainda. Coleções são criadas automaticamente no primeiro <span class="mono">POST /v1/:coleção</span>.
-    </div>`;
-    return;
-  }
   root.innerHTML = `
-    <div class="space-y-3">
-      ${cols.map(c => `
-        <details class="border border-neutral-200 rounded-md" data-col="${h(c.name)}">
+    <div class="flex items-center justify-between mb-4">
+      <p class="text-sm text-neutral-600">${cols.length} coleção${cols.length===1?'':'ões'} — clique para expandir. Novas são criadas no primeiro <code class="mono text-xs bg-neutral-100 px-1 rounded">POST</code> da aplicação.</p>
+      <button id="new-col" class="text-sm bg-neutral-900 text-white px-3 py-1.5 rounded-md hover:bg-neutral-800">+ Nova coleção</button>
+    </div>
+    <div id="cols-list" class="space-y-2">
+      ${cols.length === 0
+        ? '<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-6 text-center">Nenhuma coleção ainda.</div>'
+        : cols.map(c => `
+        <details class="border border-neutral-200 rounded-md group" data-col="${h(c.name)}">
           <summary class="flex items-center justify-between px-4 py-3 hover:bg-neutral-50">
             <div class="flex items-center gap-3">
-              <span class="text-neutral-400 mono text-xs">▸</span>
+              <span class="text-neutral-400 mono text-xs group-open:rotate-90 transition-transform inline-block">▸</span>
               <div>
                 <div class="font-medium mono text-sm">${h(c.name)}</div>
-                <div class="text-xs text-neutral-500">${c.documents} documento${c.documents===1?'':'s'}</div>
+                <div class="text-xs text-neutral-500">${c.documents} documento${c.documents===1?'':'s'} · criada ${fmtDate(c.createdAt)}</div>
               </div>
             </div>
-            <span class="text-xs text-neutral-400">${fmtDate(c.createdAt)}</span>
+            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+              <button data-add-doc="${h(c.name)}" class="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-white">+ documento</button>
+              <button data-del-col="${h(c.name)}" class="text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+            </div>
           </summary>
-          <div class="border-t border-neutral-200 p-3 docs-wrap">
-            <div class="text-xs text-neutral-500">Carregando documentos…</div>
+          <div class="border-t border-neutral-200 p-3 docs-wrap bg-neutral-50/50">
+            <div class="text-xs text-neutral-500">Carregando…</div>
           </div>
         </details>
       `).join('')}
     </div>`;
+
+  $('#new-col', root).onclick = () => openCollectionNewDocModal(appId, null, () => renderCollectionsTab(root, appId));
+
+  $$('[data-add-doc]', root).forEach(b => b.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    openCollectionNewDocModal(appId, b.dataset.addDoc, () => renderCollectionsTab(root, appId));
+  });
+  $$('[data-del-col]', root).forEach(b => b.onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const name = b.dataset.delCol;
+    if (!confirm(`Excluir a coleção "${name}" e TODOS os seus documentos e versões?`)) return;
+    try { await api.deleteCollection(appId, name); renderCollectionsTab(root, appId); renderStats(); toast('Coleção excluída'); }
+    catch (err) { toast(err.message, 'err'); }
+  });
+
   $$('details', root).forEach(d => {
     d.addEventListener('toggle', async () => {
       if (!d.open || d.dataset.loaded) return;
-      const wrap = $('.docs-wrap', d);
-      try {
-        const { items } = await api.listDocuments(appId, d.dataset.col);
-        d.dataset.loaded = '1';
-        if (!items.length) { wrap.innerHTML = '<div class="text-xs text-neutral-500">Vazio.</div>'; return; }
-        wrap.innerHTML = items.map(doc => `
-          <div class="border border-neutral-100 rounded bg-neutral-50 p-2 mb-2 last:mb-0">
-            <div class="flex items-center justify-between mb-1 text-xs">
-              <span class="mono text-neutral-600">${h(doc.id)}</span>
-              <span class="text-neutral-400">v${doc.version} · ${fmtDate(doc.updatedAt)}</span>
-            </div>
-            <pre class="mono text-xs text-neutral-800 overflow-x-auto max-h-40">${h(JSON.stringify(doc.data, null, 2))}</pre>
-          </div>
-        `).join('');
-      } catch (err) { wrap.innerHTML = `<div class="text-xs text-red-600">${h(err.message)}</div>`; }
+      await loadDocs(d, appId);
     });
+  });
+}
+
+async function loadDocs(detailsEl, appId) {
+  const wrap = $('.docs-wrap', detailsEl);
+  const name = detailsEl.dataset.col;
+  try {
+    const { items } = await api.listDocuments(appId, name);
+    detailsEl.dataset.loaded = '1';
+    if (!items.length) { wrap.innerHTML = '<div class="text-xs text-neutral-500 p-2">Coleção vazia.</div>'; return; }
+    wrap.innerHTML = items.map(doc => renderDocCard(doc, appId, name)).join('');
+    attachDocHandlers(wrap, appId, name, detailsEl);
+  } catch (err) { wrap.innerHTML = `<div class="text-xs text-red-600 p-2">${h(err.message)}</div>`; }
+}
+
+function renderDocCard(doc, appId, collection) {
+  return `
+    <div class="border border-neutral-200 rounded-md bg-white mb-2 last:mb-0" data-doc-id="${h(doc.id)}">
+      <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-100">
+        <div class="flex items-center gap-2 text-xs">
+          <span class="mono text-neutral-700">${h(doc.id)}</span>
+          <button data-copy="${h(doc.id)}" class="text-neutral-400 hover:text-neutral-700" title="Copiar id">⎘</button>
+          <span class="text-neutral-400">·</span>
+          <span class="text-neutral-500">v${doc.version}</span>
+          <span class="text-neutral-400">·</span>
+          <span class="text-neutral-500">${fmtDate(doc.updatedAt)}</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button data-edit class="text-xs px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50">editar</button>
+          <button data-versions class="text-xs px-2 py-0.5 border border-neutral-300 rounded hover:bg-neutral-50">versões</button>
+          <button data-del class="text-xs px-2 py-0.5 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+        </div>
+      </div>
+      <pre class="mono text-xs text-neutral-800 overflow-x-auto max-h-56 p-3 m-0">${h(JSON.stringify(doc.data, null, 2))}</pre>
+    </div>`;
+}
+
+function attachDocHandlers(wrap, appId, collection, detailsEl) {
+  $$('[data-copy]', wrap).forEach(b => b.onclick = () => copyText(b.dataset.copy));
+  $$('[data-doc-id]', wrap).forEach(card => {
+    const docId = card.dataset.docId;
+    $('[data-edit]', card).onclick = async () => {
+      // Pega o doc atual (data JSON) a partir do pre.
+      const pre = $('pre', card);
+      const current = pre.textContent;
+      openJsonEditor({
+        title: `Editar documento`,
+        subtitle: `${collection} / ${docId}`,
+        initial: current,
+        onSave: async (parsed) => {
+          await api.updateDocument(appId, collection, docId, parsed);
+          delete detailsEl.dataset.loaded;
+          await loadDocs(detailsEl, appId);
+          toast('Documento atualizado');
+        },
+      });
+    };
+    $('[data-versions]', card).onclick = async () => {
+      try {
+        const versions = await api.documentVersions(appId, collection, docId);
+        openModal(`
+          <div class="p-6">
+            <h3 class="text-lg font-semibold mb-1">Histórico de versões</h3>
+            <p class="text-xs text-neutral-500 mb-4 mono">${h(collection)} / ${h(docId)}</p>
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto">
+              ${versions.map(v => `
+                <div class="border border-neutral-200 rounded-md">
+                  <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-100 bg-neutral-50 text-xs">
+                    <span><strong>v${v.version}</strong> · ${fmtDate(v.createdAt)}</span>
+                  </div>
+                  <pre class="mono text-xs overflow-x-auto max-h-40 p-3 m-0">${h(JSON.stringify(v.data, null, 2))}</pre>
+                </div>
+              `).join('')}
+            </div>
+            <div class="flex justify-end mt-4">
+              <button data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Fechar</button>
+            </div>
+          </div>
+        `);
+      } catch (err) { toast(err.message, 'err'); }
+    };
+    $('[data-del]', card).onclick = async () => {
+      if (!confirm('Excluir este documento e todas as suas versões?\n\nEssa ação é permanente.')) return;
+      try {
+        await api.deleteDocument(appId, collection, docId);
+        delete detailsEl.dataset.loaded;
+        await loadDocs(detailsEl, appId);
+        renderStats();
+        toast('Documento excluído');
+      } catch (err) { toast(err.message, 'err'); }
+    };
+  });
+}
+
+function openCollectionNewDocModal(appId, prefilledName, onCreated) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-semibold mb-1">${prefilledName ? 'Adicionar documento' : 'Nova coleção + documento'}</h3>
+      <p class="text-xs text-neutral-500 mb-4">${prefilledName ? `Coleção: <strong class="mono">${h(prefilledName)}</strong>` : 'Informe o nome da coleção e o JSON inicial.'}</p>
+      <form id="f" class="space-y-4">
+        ${prefilledName ? '' : `
+          <div>
+            <label class="block text-xs font-medium text-neutral-600 mb-1">Coleção</label>
+            <input name="name" required pattern="[a-zA-Z0-9_-]+" maxlength="64"
+              class="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm mono focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+          </div>
+        `}
+        <div>
+          <label class="block text-xs font-medium text-neutral-600 mb-1">Dados (JSON)</label>
+          <textarea name="data" rows="10" required
+            class="w-full px-3 py-2 border border-neutral-300 rounded-md text-xs mono focus:outline-none focus:ring-2 focus:ring-neutral-900"
+            placeholder='{\n  "exemplo": true\n}'>{}</textarea>
+          <div class="text-xs text-red-600 mt-1 hidden" id="err"></div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Cancelar</button>
+          <button type="submit" class="px-4 py-2 text-sm bg-neutral-900 text-white rounded-md hover:bg-neutral-800">Criar</button>
+        </div>
+      </form>
+    </div>
+  `, (modal) => {
+    $('#f', modal).onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = prefilledName || fd.get('name');
+      let data;
+      try { data = JSON.parse(fd.get('data')); }
+      catch (err) {
+        const el = $('#err', modal);
+        el.textContent = 'JSON inválido: ' + err.message;
+        el.classList.remove('hidden');
+        return;
+      }
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        const el = $('#err', modal);
+        el.textContent = 'O documento deve ser um objeto JSON (não array nem primitivo).';
+        el.classList.remove('hidden');
+        return;
+      }
+      try {
+        await api.createDocument(appId, name, data);
+        closeModal(); renderStats();
+        if (onCreated) onCreated();
+        toast('Documento criado');
+      } catch (err) { toast(err.message, 'err'); }
+    };
+  });
+}
+
+function openJsonEditor({ title, subtitle, initial, onSave }) {
+  openModal(`
+    <div class="p-6 flex flex-col h-full">
+      <h3 class="text-lg font-semibold">${h(title)}</h3>
+      ${subtitle ? `<p class="text-xs text-neutral-500 mb-4 mono">${h(subtitle)}</p>` : '<div class="mb-4"></div>'}
+      <textarea id="json" rows="18"
+        class="w-full px-3 py-2 border border-neutral-300 rounded-md text-xs mono focus:outline-none focus:ring-2 focus:ring-neutral-900">${h(initial)}</textarea>
+      <div class="text-xs text-red-600 mt-2 hidden" id="err"></div>
+      <div class="flex items-center justify-between mt-4">
+        <button id="format" class="text-xs text-neutral-600 hover:text-neutral-900 underline">reformatar</button>
+        <div class="flex gap-2">
+          <button data-close class="px-4 py-2 text-sm border border-neutral-300 rounded-md hover:bg-neutral-50">Cancelar</button>
+          <button id="save" class="px-4 py-2 text-sm bg-neutral-900 text-white rounded-md hover:bg-neutral-800">Salvar</button>
+        </div>
+      </div>
+    </div>
+  `, (modal) => {
+    const ta = $('#json', modal);
+    const err = $('#err', modal);
+    $('#format', modal).onclick = () => {
+      try { ta.value = JSON.stringify(JSON.parse(ta.value), null, 2); err.classList.add('hidden'); }
+      catch (e) { err.textContent = 'JSON inválido: ' + e.message; err.classList.remove('hidden'); }
+    };
+    $('#save', modal).onclick = async () => {
+      let parsed;
+      try { parsed = JSON.parse(ta.value); }
+      catch (e) { err.textContent = 'JSON inválido: ' + e.message; err.classList.remove('hidden'); return; }
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        err.textContent = 'O documento deve ser um objeto JSON.';
+        err.classList.remove('hidden');
+        return;
+      }
+      try { await onSave(parsed); closeModal(); }
+      catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+    };
   });
 }
 
 async function renderFilesTab(root, appId) {
   const { items } = await api.listFiles(appId);
   if (!items.length) {
-    root.innerHTML = `<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-4 text-center">Nenhum arquivo enviado ainda.</div>`;
+    root.innerHTML = `<div class="text-sm text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md p-6 text-center">
+      Nenhum arquivo enviado ainda. Faça upload via <code class="mono text-xs bg-neutral-100 px-1 rounded">POST /v1/files/:coleção</code>.
+    </div>`;
     return;
   }
   root.innerHTML = `
+    <div class="mb-3 text-xs text-neutral-500">${items.length} arquivo${items.length===1?'':'s'} · ${fmtBytes(items.reduce((s,f)=>s+f.size,0))}</div>
     <div class="border border-neutral-200 rounded-md overflow-hidden">
       <table class="w-full text-sm">
         <thead class="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
@@ -603,24 +803,43 @@ async function renderFilesTab(root, appId) {
             <th class="text-left font-medium px-3 py-2">Tipo</th>
             <th class="text-right font-medium px-3 py-2">Tamanho</th>
             <th class="text-left font-medium px-3 py-2">Enviado</th>
+            <th class="px-3 py-2"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-neutral-100">
           ${items.map(f => `
-            <tr>
+            <tr data-file="${h(f.id)}">
               <td class="px-3 py-2.5">
                 <div class="font-medium">${h(f.originalName)}</div>
-                <div class="text-xs text-neutral-400 mono">${h(f.sha256.slice(0,16))}…</div>
+                <div class="text-xs text-neutral-400 mono flex items-center gap-1">
+                  <span>${h(f.sha256.slice(0,16))}…</span>
+                  <button data-copy="${h(f.sha256)}" class="hover:text-neutral-700" title="Copiar sha256">⎘</button>
+                </div>
               </td>
               <td class="px-3 py-2.5 mono text-xs">${h(f.collection)}</td>
               <td class="px-3 py-2.5 text-xs text-neutral-600">${h(f.mimeType)}</td>
               <td class="px-3 py-2.5 text-right mono text-xs">${fmtBytes(f.size)}</td>
               <td class="px-3 py-2.5 text-xs text-neutral-500">${fmtDate(f.createdAt)}</td>
+              <td class="px-3 py-2.5 text-right whitespace-nowrap">
+                <a href="${api.fileDownloadUrl(appId, f.id)}" download="${h(f.originalName)}"
+                   class="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-50 mr-1">↓ baixar</a>
+                <button data-del-file="${h(f.id)}" class="text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50">excluir</button>
+              </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>`;
+
+  $$('[data-copy]', root).forEach(b => b.onclick = () => copyText(b.dataset.copy));
+  $$('[data-del-file]', root).forEach(b => b.onclick = async () => {
+    if (!confirm('Excluir este arquivo? O binário será removido do disco e a ação é permanente.')) return;
+    try {
+      await api.deleteFile(appId, b.dataset.delFile);
+      renderFilesTab(root, appId); renderStats();
+      toast('Arquivo excluído');
+    } catch (err) { toast(err.message, 'err'); }
+  });
 }
 
 // ---------- Boot ----------

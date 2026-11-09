@@ -190,7 +190,8 @@ const HTML = `<!doctype html>
     </div>
 
     <div class="actions">
-      <a class="btn primary" href="/admin">Painel admin →</a>
+      <a class="btn primary" href="/docs">📖 Manual de instruções</a>
+      <a class="btn" href="/admin">Painel admin →</a>
       <a class="btn" href="/health">Ver /health</a>
     </div>
 
