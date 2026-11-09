@@ -17,6 +17,7 @@ Data da última revisão: `2026-11-09`
 | `/src/routes/`   | Handlers de rota agrupados por domínio.                                   |
 | `/src/admin/`    | Assets estáticos do painel administrativo (HTML/CSS/JS).                 |
 | `/storage/`      | **Runtime.** Raiz dos arquivos enviados. Nunca commitar conteúdo.         |
+| `/deploy/`       | Artefatos de deploy (Nginx conf + guia operacional).                      |
 
 ## Arquivos raiz
 
@@ -30,6 +31,16 @@ Data da última revisão: `2026-11-09`
 | `tsconfig.json`  | Configuração do TypeScript (strict, ESM, NodeNext).                       |
 | `.env.example`   | Modelo de variáveis de ambiente. Copie para `.env`.                       |
 | `.gitignore`     | Padrões ignorados pelo Git.                                               |
+| `.dockerignore`  | Padrões excluídos do build da imagem Docker.                              |
+| `Dockerfile`     | Build multi-stage da imagem de produção (builder + runner enxuto).        |
+| `docker-compose.yml` | Stack `postgres` + `api` para produção/dev.                            |
+
+## `deploy/`
+
+| Arquivo              | O que faz                                                            |
+|----------------------|----------------------------------------------------------------------|
+| `deploy/nginx.conf`  | Config Nginx reverse-proxy para `database.windlog.org` com TLS.      |
+| `deploy/README.md`   | Passo a passo operacional de deploy, backup, restore e atualização.  |
 
 ## `prisma/`
 
