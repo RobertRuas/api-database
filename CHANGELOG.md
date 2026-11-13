@@ -5,6 +5,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/) e [SemVer](ht
 
 ## [Unreleased]
 
+### Changed
+- Limite padrão de upload de arquivo elevado de 100 MB para 300 MB (`MAX_FILE_SIZE`).
+- Removida a quota de armazenamento por aplicação (`Application.storageQuotaBytes`).
+
 ### Added
 - Estrutura inicial do projeto: Fastify + Prisma + PostgreSQL.
 - Rotas `v1` de documentos (CRUD + histórico de versões).

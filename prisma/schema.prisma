@@ -25,8 +25,6 @@ model Application {
   name               String    @unique
   description        String?
   active             Boolean   @default(true)
-  /// Quota de armazenamento em bytes. `null` = sem limite.
-  storageQuotaBytes  BigInt?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

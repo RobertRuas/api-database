@@ -16,7 +16,7 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL é obrigatório'),
 
   STORAGE_ROOT: z.string().default('./storage'),
-  MAX_FILE_SIZE: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  MAX_FILE_SIZE: z.coerce.number().int().positive().default(300 * 1024 * 1024),
 
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET precisa ter ao menos 32 chars'),
   COOKIE_NAME: z.string().default('apidb_session'),

@@ -279,7 +279,7 @@ Authorization: Bearer apidb_live_abc123...</code></pre>
   }
 }</code></pre>
       <div class="callout">
-        Tamanho máximo padrão: <strong>100 MB</strong> por arquivo. Ajustável via <code>MAX_FILE_SIZE</code> no servidor.
+        Tamanho máximo padrão: <strong>300 MB</strong> por arquivo. Ajustável via <code>MAX_FILE_SIZE</code> no servidor.
       </div>
 
       <h2 id="download">Download</h2>

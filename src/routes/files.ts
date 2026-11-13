@@ -25,24 +25,6 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post('/:collection', { preHandler: apiKeyAuth('files') }, async (req) => {
     const { collection } = z.object({ collection: CollectionNameSchema }).parse(req.params);
 
-    // Quota: se a Application definiu `storageQuotaBytes`, bloqueia upload
-    // se a soma atual já estourou. Checagem antes de gravar no disco.
-    const appRow = await prisma.application.findUnique({
-      where: { id: req.application!.id },
-      select: { storageQuotaBytes: true },
-    });
-    const quota = appRow?.storageQuotaBytes != null ? BigInt(appRow.storageQuotaBytes) : null;
-
-    if (quota !== null && quota > 0n) {
-      const used = await prisma.fileAsset.aggregate({
-        _sum: { size: true },
-        where: { applicationId: req.application!.id, deletedAt: null },
-      });
-      if (BigInt(used._sum.size ?? 0) >= quota) {
-        throw Errors.tooLarge('Quota de armazenamento excedida.');
-      }
-    }
-
     const data = await req.file();
     if (!data) throw Errors.badRequest('Nenhum arquivo enviado.');
 
@@ -55,17 +37,6 @@ const routes: FastifyPluginAsync = async (app) => {
     if (data.file.truncated) {
       await deleteFile(saved.storedPath);
       throw Errors.tooLarge();
-    }
-
-    if (quota !== null && quota > 0n) {
-      const used = await prisma.fileAsset.aggregate({
-        _sum: { size: true },
-        where: { applicationId: req.application!.id, deletedAt: null },
-      });
-      if (BigInt(used._sum.size ?? 0) + BigInt(saved.size) > quota) {
-        await deleteFile(saved.storedPath);
-        throw Errors.tooLarge('Quota de armazenamento excedida.');
-      }
     }
 
     const record = await prisma.fileAsset.create({
