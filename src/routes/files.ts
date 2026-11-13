@@ -103,9 +103,11 @@ const routes: FastifyPluginAsync = async (app) => {
     return reply.send(stream);
   });
 
-  // ---- Delete (soft) ----
-  // Marca `deletedAt` primeiro; remoção do disco é best-effort. Se o unlink
-  // falhar, o registro permanece como "pendente" para um job de reconciliação.
+  // ---- Delete ----
+  // Garantia de remoção: apaga o blob do disco PRIMEIRO. Só marca o registro
+  // como deletado se o unlink confirmar (ou se o arquivo já não existia).
+  // Qualquer outra falha de FS propaga como 500 — a chamada pode ser repetida
+  // com segurança sem deixar registro "fantasma" apontando pra blob inexistente.
   app.delete('/:id', { preHandler: apiKeyAuth('files', 'delete') }, async (req) => {
     const { id } = z.object({ id: FileIdSchema }).parse(req.params);
     const file = await prisma.fileAsset.findUnique({ where: { id } });
@@ -113,12 +115,19 @@ const routes: FastifyPluginAsync = async (app) => {
       throw Errors.notFound('Arquivo');
     }
 
+    try {
+      await deleteFile(file.storedPath);
+    } catch (err) {
+      logger.error(
+        { err: (err as Error).message, id: file.id, path: file.storedPath },
+        'Falha ao remover arquivo do disco',
+      );
+      throw Errors.internal('Falha ao remover arquivo do disco.');
+    }
+
     await prisma.fileAsset.update({
       where: { id: file.id },
       data: { deletedAt: new Date() },
-    });
-    deleteFile(file.storedPath).catch((err) => {
-      logger.warn({ err: (err as Error).message, id: file.id }, 'Falha ao remover arquivo do disco');
     });
 
     return { ok: true, data: { id: file.id, deleted: true } };

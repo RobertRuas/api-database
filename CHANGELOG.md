@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/) e [SemVer](ht
 ### Changed
 - Limite padrão de upload de arquivo elevado de 100 MB para 300 MB (`MAX_FILE_SIZE`).
 - Removida a quota de armazenamento por aplicação (`Application.storageQuotaBytes`).
+- `DELETE /v1/files/:id` agora remove o blob do disco de forma síncrona antes
+  de marcar o registro como deletado. Falha de FS propaga como 500 e nada é
+  alterado, permitindo retry seguro.
 
 ### Added
 - Estrutura inicial do projeto: Fastify + Prisma + PostgreSQL.
